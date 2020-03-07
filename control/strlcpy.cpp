@@ -1,9 +1,9 @@
 /*
-    -- clMAGMA (version 1.3.0) --
+    -- clMAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 */
 #include "common_magma.h"
 
@@ -35,7 +35,7 @@
  */
 
 #include <sys/types.h>
-#include <string.h>
+#include <cstring>
 
 /*
  * Copy src to string dst of size siz.  At most siz-1 characters

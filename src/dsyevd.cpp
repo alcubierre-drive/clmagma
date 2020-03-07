@@ -1,9 +1,9 @@
 /*
-    -- clMAGMA (version 1.3.0) --
+    -- clMAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
        @author Stan Tomov
        @author Mark Gates
@@ -11,25 +11,23 @@
        @precisions normal d -> s
 
 */
+#include <cstdio>
 #include "common_magma.h"
-#include "magma_timer.h"
 
 extern "C" magma_int_t
-magma_dsyevd(
-    magma_vec_t jobz, magma_uplo_t uplo,
-    magma_int_t n,
-    double *a, magma_int_t lda,
-    double *w,
-    double *work, magma_int_t lwork,
-    magma_int_t *iwork, magma_int_t liwork,
-    magma_queue_t queue,
-    magma_int_t *info)
+magma_dsyevd(magma_vec_t jobz, magma_vec_t uplo,
+             magma_int_t n,
+             double *a, magma_int_t lda,
+             double *w,
+             double *work, magma_int_t lwork,
+             magma_int_t *iwork, magma_int_t liwork,
+             magma_int_t *info, magma_queue_t queue)
 {
-/*  -- MAGMA (version 1.3.0) --
+/*  -- MAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
     Purpose
     =======
@@ -70,7 +68,7 @@ magma_dsyevd(
             diagonal, is destroyed.
 
     LDA     (input) INTEGER
-            The leading dimension of the array A.  LDA >= max(1,N).
+            The leading dimension of the array A.  LDA >= std::max(1,N).
 
     W       (output) DOUBLE PRECISION array, dimension (N)
             If INFO = 0, the eigenvalues in ascending order.
@@ -80,9 +78,9 @@ magma_dsyevd(
 
     LWORK   (input) INTEGER
             The length of the array WORK.
-            If N <= 1,                LWORK >= 1.
-            If JOBZ  = 'N' and N > 1, LWORK >= 2*N + N*NB.
-            If JOBZ  = 'V' and N > 1, LWORK >= max( 2*N + N*NB, 1 + 6*N + 2*N**2 ).
+            If N <= 1,                LWORK must be at least 1.
+            If JOBZ  = 'N' and N > 1, LWORK must be at least 2*N + N*NB.
+            If JOBZ  = 'V' and N > 1, LWORK must be at least 1 + 6*N + 2*N**2.
             NB can be obtained through magma_get_dsytrd_nb(N).
 
             If LWORK = -1, then a workspace query is assumed; the routine
@@ -96,9 +94,9 @@ magma_dsyevd(
 
     LIWORK  (input) INTEGER
             The dimension of the array IWORK.
-            If N <= 1,                LIWORK >= 1.
-            If JOBZ  = 'N' and N > 1, LIWORK >= 1.
-            If JOBZ  = 'V' and N > 1, LIWORK >= 3 + 5*N.
+            If N <= 1,                LIWORK must be at least 1.
+            If JOBZ  = 'N' and N > 1, LIWORK must be at least 1.
+            If JOBZ  = 'V' and N > 1, LIWORK must be at least 3 + 5*N.
 
             If LIWORK = -1, then a workspace query is assumed; the
             routine only calculates the optimal sizes of the WORK and
@@ -126,8 +124,8 @@ magma_dsyevd(
     Modified description of INFO. Sven, 16 Feb 05.
     =====================================================================   */
 
-    const char* uplo_ = lapack_uplo_const( uplo );
-    const char* jobz_ = lapack_vec_const( jobz );
+    magma_uplo_t uplo_ = uplo;
+    magma_vec_t jobz_ = jobz;
     magma_int_t ione = 1;
     magma_int_t izero = 0;
     double d_one = 1.;
@@ -154,18 +152,18 @@ magma_dsyevd(
 
     magmaDouble_ptr dwork;
 
-    wantz = (jobz == MagmaVec);
-    lower = (uplo == MagmaLower);
-    lquery = (lwork == -1 || liwork == -1);
+    wantz = lapackf77_lsame(lapack_const(jobz_), MagmaVecStr);
+    lower = lapackf77_lsame(lapack_const(uplo_), MagmaLowerStr);
+    lquery = lwork == -1 || liwork == -1;
 
     *info = 0;
-    if (! (wantz || (jobz == MagmaNoVec))) {
+    if (! (wantz || lapackf77_lsame(lapack_const(jobz_), MagmaNoVecStr))) {
         *info = -1;
-    } else if (! (lower || (uplo == MagmaUpper))) {
+    } else if (! (lower || lapackf77_lsame(lapack_const(uplo_), MagmaUpperStr))) {
         *info = -2;
     } else if (n < 0) {
         *info = -3;
-    } else if (lda < max(1,n)) {
+    } else if (lda < std::max(1,n)) {
         *info = -5;
     }
 
@@ -175,7 +173,7 @@ magma_dsyevd(
         liwmin = 1;
     }
     else if ( wantz ) {
-        lwmin  = max( 2*n + n*nb, 1 + 6*n + 2*n*n );
+        lwmin  = 1 + 6*n + 2*n*n;
         liwmin = 3 + 5*n;
     }
     else {
@@ -184,8 +182,7 @@ magma_dsyevd(
     }
     // multiply by 1+eps to ensure length gets rounded up,
     // if it cannot be exactly represented in floating point.
-    double one_eps = 1. + lapackf77_dlamch("Epsilon");
-    work[0]  = lwmin * one_eps;
+    work[0]  = lwmin * (1. + lapackf77_dlamch("Epsilon"));
     iwork[0] = liwmin;
 
     if ((lwork < lwmin) && !lquery) {
@@ -215,20 +212,6 @@ magma_dsyevd(
         return *info;
     }
 
-    /* Check if matrix is very small then just call LAPACK on CPU, no need for GPU */
-    if (n <= 128) {
-        #ifdef ENABLE_DEBUG
-        printf("--------------------------------------------------------------\n");
-        printf("  warning matrix too small N=%d NB=%d, calling lapack on CPU  \n", (int) n, (int) nb);
-        printf("--------------------------------------------------------------\n");
-        #endif
-        lapackf77_dsyevd(jobz_, uplo_,
-                         &n, a, &lda,
-                         w, work, &lwork,
-                         iwork, &liwork, info);
-        return *info;
-    }
-
     /* Get machine constants. */
     safmin = lapackf77_dlamch("Safe minimum");
     eps    = lapackf77_dlamch("Precision");
@@ -238,7 +221,7 @@ magma_dsyevd(
     rmax = magma_dsqrt(bignum);
 
     /* Scale matrix to allowable range, if necessary. */
-    anrm = lapackf77_dlansy("M", uplo_, &n, a, &lda, work );
+    anrm = lapackf77_dlansy("M", lapack_const(uplo_), &n, a, &lda, work );
     iscale = 0;
     if (anrm > 0. && anrm < rmin) {
         iscale = 1;
@@ -248,7 +231,7 @@ magma_dsyevd(
         sigma = rmax / anrm;
     }
     if (iscale == 1) {
-        lapackf77_dlascl(uplo_, &izero, &izero, &d_one, &sigma, &n, &n, a,
+        lapackf77_dlascl(lapack_const(uplo_), &izero, &izero, &d_one, &sigma, &n, &n, a,
                 &lda, info);
     }
 
@@ -262,14 +245,19 @@ magma_dsyevd(
     llwork = lwork - indwrk;
     llwrk2 = lwork - indwk2;
 
-    magma_timer_t time;
-    timer_start( time );
+//#define ENABLE_TIMER
+#ifdef ENABLE_TIMER
+    magma_timestr_t start, end;
+    start = get_current_time();
+#endif
 
-    magma_dsytrd(uplo, n, a, lda, w, &work[inde],
-                 &work[indtau], &work[indwrk], llwork, queue, &iinfo);
+    magma_dsytrd(lapack_const(uplo)[0], n, a, lda, w, &work[inde],
+                 &work[indtau], &work[indwrk], llwork, &iinfo, queue);
     
-    timer_stop( time );
-    timer_printf( "time dsytrd = %6.2f\n", time );
+#ifdef ENABLE_TIMER
+    end = get_current_time();
+    printf("time dsytrd = %6.2f\n", GetTimerValue(start,end)/1000.);
+#endif
 
     /* For eigenvalues only, call DSTERF.  For eigenvectors, first call
        DSTEDC to generate the eigenvector matrix, WORK(INDWRK), of the
@@ -277,33 +265,39 @@ magma_dsyevd(
        transformations represented as Householder vectors in A. */
     if (! wantz) {
         lapackf77_dsterf(&n, w, &work[inde], info);
-    }
-    else {
-        timer_start( time );
+    } else {
 
+#ifdef ENABLE_TIMER
+        start = get_current_time();
+#endif
+        
         if (MAGMA_SUCCESS != magma_dmalloc( &dwork, 3*n*(n/2 + 1) )) {
             *info = MAGMA_ERR_DEVICE_ALLOC;
             return *info;
         }
         
-        // TTT Possible bug for n < 128
-        magma_dstedx(MagmaRangeAll, n, 0., 0., 0, 0, w, &work[inde],
+        magma_dstedx(MagmaAllVec, n, 0., 0., 0, 0, w, &work[inde],
                      &work[indwrk], n, &work[indwk2],
-                     llwrk2, iwork, liwork, dwork, queue, info);
+                     llwrk2, iwork, liwork, dwork, info, queue);
         
         magma_free( dwork );
         
-        timer_stop( time );
-        timer_printf( "time dstedx = %6.2f\n", time );
-        timer_start( time );
+#ifdef ENABLE_TIMER
+        end = get_current_time();
+        printf("time dstedx = %6.2f\n", GetTimerValue(start,end)/1000.);
         
+        start = get_current_time();
+#endif
+
         magma_dormtr(MagmaLeft, uplo, MagmaNoTrans, n, n, a, lda, &work[indtau],
-                     &work[indwrk], n, &work[indwk2], llwrk2, queue, &iinfo);
+                     &work[indwrk], n, &work[indwk2], llwrk2, &iinfo, queue);
         
         lapackf77_dlacpy("A", &n, &n, &work[indwrk], &n, a, &lda);
 
-        timer_stop( time );
-        timer_printf( "time dormtr + copy = %6.2f\n", time );
+#ifdef ENABLE_TIMER
+        end = get_current_time();
+        printf("time dormtr + copy = %6.2f\n", GetTimerValue(start,end)/1000.);
+#endif
     }
 
     /* If matrix was scaled, then rescale eigenvalues appropriately. */
@@ -312,7 +306,7 @@ magma_dsyevd(
         blasf77_dscal(&n, &d__1, w, &ione);
     }
 
-    work[0]  = lwmin * one_eps;  // round up
+    work[0]  = lwmin * (1. + lapackf77_dlamch("Epsilon"));  // round up
     iwork[0] = liwmin;
 
     return *info;

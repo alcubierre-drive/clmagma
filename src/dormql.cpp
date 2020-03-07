@@ -1,33 +1,32 @@
 /*
-    -- clMAGMA (version 1.3.0) --
+    -- clMAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
        @author Raffaele Solca
 
-       @generated from zunmql.cpp normal z -> d, Sat Nov 15 00:21:37 2014
+       @generated from zunmql.cpp normal z -> d, Fri Jan 10 15:51:18 2014
 
 */
+#include <cstdio>
 #include "common_magma.h"
 
 extern "C" magma_int_t
-magma_dormql(
-    magma_side_t side, magma_trans_t trans,
-    magma_int_t m, magma_int_t n, magma_int_t k,
-    double *a, magma_int_t lda,
-    double *tau,
-    double *c, magma_int_t ldc,
-    double *work, magma_int_t lwork,
-    magma_queue_t queue,
-    magma_int_t *info)
+magma_dormql(magma_side_t side, magma_trans_t trans,
+             magma_int_t m, magma_int_t n, magma_int_t k,
+             double *a, magma_int_t lda,
+             double *tau,
+             double *c, magma_int_t ldc,
+             double *work, magma_int_t lwork,
+             magma_int_t *info, magma_queue_t queue)
 {
-/*  -- MAGMA (version 1.3.0) --
+/*  -- MAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
     Purpose
     =======
@@ -35,7 +34,7 @@ magma_dormql(
 
                     SIDE = 'L'     SIDE = 'R'
     TRANS = 'N':      Q * C          C * Q
-    TRANS = 'C':      Q**H * C       C * Q**H
+    TRANS = 'C':      Q**T * C       C * Q**T
 
     where Q is a real unitary matrix defined as the product of k
     elementary reflectors
@@ -48,12 +47,12 @@ magma_dormql(
     Arguments
     =========
     SIDE    (input) CHARACTER*1
-            = 'L': apply Q or Q**H from the Left;
-            = 'R': apply Q or Q**H from the Right.
+            = 'L': apply Q or Q**T from the Left;
+            = 'R': apply Q or Q**T from the Right.
 
     TRANS   (input) CHARACTER*1
             = 'N':  No transpose, apply Q;
-            = 'C':  Transpose, apply Q**H.
+            = 'C':  Transpose, apply Q**T.
 
     M       (input) INTEGER
             The number of rows of the matrix C. M >= 0.
@@ -75,8 +74,8 @@ magma_dormql(
 
     LDA     (input) INTEGER
             The leading dimension of the array A.
-            If SIDE = 'L', LDA >= max(1,M);
-            if SIDE = 'R', LDA >= max(1,N).
+            If SIDE = 'L', LDA >= std::max(1,M);
+            if SIDE = 'R', LDA >= std::max(1,N).
 
     TAU     (input) DOUBLE PRECISION array, dimension (K)
             TAU(i) must contain the scalar factor of the elementary
@@ -84,18 +83,18 @@ magma_dormql(
 
     C       (input/output) DOUBLE PRECISION array, dimension (LDC,N)
             On entry, the M-by-N matrix C.
-            On exit, C is overwritten by Q*C or Q**H*C or C*Q**H or C*Q.
+            On exit, C is overwritten by Q*C or Q**T*C or C*Q**T or C*Q.
 
     LDC     (input) INTEGER
-            The leading dimension of the array C. LDC >= max(1,M).
+            The leading dimension of the array C. LDC >= std::max(1,M).
 
     WORK    (workspace/output) DOUBLE PRECISION array, dimension (MAX(1,LWORK))
             On exit, if INFO = 0, WORK(1) returns the optimal LWORK.
 
     LWORK   (input) INTEGER
             The dimension of the array WORK.
-            If SIDE = 'L', LWORK >= max(1,N);
-            if SIDE = 'R', LWORK >= max(1,M).
+            If SIDE = 'L', LWORK >= std::max(1,N);
+            if SIDE = 'R', LWORK >= std::max(1,M).
             For optimum performance LWORK >= N*NB if SIDE = 'L', and
             LWORK >= M*NB if SIDE = 'R', where NB is the optimal
             blocksize.
@@ -110,13 +109,16 @@ magma_dormql(
             < 0:  if INFO = -i, the i-th argument had an illegal value
     =====================================================================    */
     
+    magma_side_t side_ = side;
+    magma_side_t trans_ = trans;
+
     /* Allocate work space on the GPU */
     magmaDouble_ptr dwork, dc;
     magma_dmalloc( &dc, (m)*(n) );
     magma_dmalloc( &dwork, 2*(m + 64)*64 );
 
     /* Copy matrix C from the CPU to the GPU */
-    magma_dsetmatrix( m, n, c, ldc, dc, 0, m, queue );
+    magma_dsetmatrix( m, n, c, 0, ldc, dc, 0, m, queue );
     //dc -= (1 + m);
     size_t dc_offset = -(1+m);
 
@@ -136,21 +138,21 @@ magma_dormql(
     c -= c_offset;
 
     *info  = 0;
-    left   = (side == MagmaLeft);
-    notran = (trans == MagmaNoTrans);
+    left   = lapackf77_lsame(lapack_const(side_), "L");
+    notran = lapackf77_lsame(lapack_const(trans_), "N");
     lquery = (lwork == -1);
 
     /* NQ is the order of Q and NW is the minimum dimension of WORK */
     if (left) {
         nq = m;
-        nw = max(1,n);
+        nw = std::max(1,n);
     } else {
         nq = n;
-        nw = max(1,m);
+        nw = std::max(1,m);
     }
-    if (! left && side != MagmaRight) {
+    if (! left && ! lapackf77_lsame(lapack_const(side_), "R")) {
         *info = -1;
-    } else if (! notran && trans != MagmaConjTrans) {
+    } else if (! notran && ! lapackf77_lsame(lapack_const(trans_), "C")) {
         *info = -2;
     } else if (m < 0) {
         *info = -3;
@@ -158,9 +160,9 @@ magma_dormql(
         *info = -4;
     } else if (k < 0 || k > nq) {
         *info = -5;
-    } else if (lda < max(1,nq)) {
+    } else if (lda < std::max(1,nq)) {
         *info = -7;
-    } else if (ldc < max(1,m)) {
+    } else if (ldc < std::max(1,m)) {
         *info = -10;
     }
 
@@ -173,7 +175,7 @@ magma_dormql(
         nb = 64;
         lwkopt = nw * nb;
       }
-      work[0] = MAGMA_D_MAKE( lwkopt, 0 );
+      MAGMA_D_SET2REAL( work[0], lwkopt );
 
       if (lwork < nw && ! lquery) {
         *info = -12;
@@ -198,13 +200,13 @@ magma_dormql(
     if ( nb >= k )
       {
         /* Use CPU code */
-        lapackf77_dormql(lapack_const(side), lapack_const(trans), &m, &n, &k, &a[a_offset], &lda, &tau[1],
+        lapackf77_dormql(lapack_const(side_), lapack_const(trans_), &m, &n, &k, &a[a_offset], &lda, &tau[1],
                          &c[c_offset], &ldc, work, &lwork, &iinfo);
       }
     else
       {
         /* Use hybrid CPU-GPU code */
-        if ((left && notran) || (! left && ! notran)) {
+        if (left && notran || ! left && ! notran) {
             i1 = 1;
             i2 = k;
             i3 = nb;
@@ -221,7 +223,7 @@ magma_dormql(
         }
 
         for (i__ = i1; i3 < 0 ? i__ >= i2 : i__ <= i2; i__ += i3) {
-          ib = min(nb, k - i__ + 1);
+          ib = std::min(nb, k - i__ + 1);
           
           /* Form the triangular factor of the block reflector
              H = H(i+ib-1) . . . H(i+1) H(i) */
@@ -232,9 +234,9 @@ magma_dormql(
           /* 1) Put 0s in the lower triangular part of A;
              2) copy the panel from A to the GPU, and
              3) restore A                                      */
-          dpanel_to_q(MagmaLower, ib, &a[i__ + i__ * lda], lda, t+ib*ib);
-          magma_dsetmatrix( i__4, ib, &a[1 + i__ * lda], lda, dwork, 0, i__4, queue );
-          dq_to_panel(MagmaLower, ib, &a[i__ + i__ * lda], lda, t+ib*ib);
+          dpanel_to_q(MagmaLeft, ib, &a[i__ + i__ * lda], lda, t+ib*ib);
+          magma_dsetmatrix( i__4, ib, &a[1 + i__ * lda], 0, lda, dwork, 0, i__4, queue );
+          dq_to_panel(MagmaLeft, ib, &a[i__ + i__ * lda], lda, t+ib*ib);
 
           if (left)
             {
@@ -248,7 +250,7 @@ magma_dormql(
             }
           
           /* Apply H or H'; First copy T to the GPU */
-          magma_dsetmatrix( ib, ib, t, ib, dwork, i__4*ib, ib, queue );
+          magma_dsetmatrix( ib, ib, t, 0, ib, dwork, i__4*ib, ib, queue );
           magma_dlarfb_gpu(side, trans, MagmaBackward, MagmaColumnwise,
                            mi, ni, ib,
                            dwork, 0, i__4, dwork, i__4*ib, ib,
@@ -256,9 +258,9 @@ magma_dormql(
                            dwork, (i__4*ib + ib*ib), ldwork, queue);
         }
 
-        magma_dgetmatrix( m, n, dc, dc_offset+(1+m), m, &c[c_offset], ldc, queue );
+        magma_dgetmatrix( m, n, dc, dc_offset+(1+m), m, &c[c_offset], 0, ldc, queue );
     }
-    work[0] = MAGMA_D_MAKE( lwkopt, 0 );
+    MAGMA_D_SET2REAL( work[0], lwkopt );
 
     //dc += (1 + m);
     magma_free( dc );

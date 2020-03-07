@@ -1,13 +1,15 @@
 /*
- *   -- clMAGMA (version 1.3.0) --
+ *   -- clMAGMA (version 1.1.0) --
  *      Univ. of Tennessee, Knoxville
  *      Univ. of California, Berkeley
  *      Univ. of Colorado, Denver
- *      @date November 2014
+ *      @date January 2014
  *
  * @author Mark Gates
- * @generated from zpotrf2_gpu.cpp normal z -> s, Sat Nov 15 00:21:37 2014
+ * @generated from zpotrf2_gpu.cpp normal z -> s, Fri Jan 10 15:51:17 2014
  */
+
+#include <cstdio>
 
 #include "common_magma.h"
 
@@ -55,9 +57,9 @@ extern cl_context     gContext;
             factorization dA = U\*\*H*U or dA = L*L\*\*H.   
 
     LDDA    (input) INTEGER   
-            The leading dimension of the array dA.  LDDA >= max(1,N).
+            The leading dimension of the array dA.  LDDA >= std::max(1,N).
             To benefit from coalescent memory accesses LDDA must be
-            divisible by 16.
+            dividable by 16.
 
     INFO    (output) INTEGER   
             = 0:  successful exit   
@@ -66,15 +68,14 @@ extern cl_context     gContext;
                   positive definite, and the factorization could not be   
                   completed.   
     =====================================================================   */
-
-extern "C" magma_int_t
+magma_err_t
 magma_spotrf2_gpu(
     magma_uplo_t   uplo,
     magma_int_t    n,
     magmaFloat_ptr dA, size_t dA_offset, 
     magma_int_t    ldda,
-    magma_queue_t* queue,
-    magma_int_t*   info)
+    magma_err_t*   info,
+    magma_queue_t* queue)
 {
     magma_int_t j, jb, nb;
     float  z_one = MAGMA_S_MAKE(  1.0, 0.0 );
@@ -82,14 +83,14 @@ magma_spotrf2_gpu(
     float    one =  1.0;
     float  m_one = -1.0;
     float* work;
-    magma_int_t err;
+    magma_err_t err;
     
     *info = 0;
     if ( uplo != MagmaUpper && uplo != MagmaLower ) {
         *info = -1;
     } else if ( n < 0 ) {
         *info = -2;
-    } else if ( ldda < max(1,n) ) {
+    } else if ( ldda < std::max(1,n) ) {
         *info = -4;
     }
     if ( *info != 0 ) {
@@ -111,9 +112,9 @@ magma_spotrf2_gpu(
 
     if ((nb <= 1) || (nb >= n)) {
         // use unblocked code
-        magma_sgetmatrix( n, n, dA, dA_offset, ldda, work, n, queue[1] );
+        chk( magma_sgetmatrix( n, n, dA, dA_offset, ldda, work, 0, n, queue[1] ));
         lapackf77_spotrf( lapack_uplo_const(uplo), &n, work, &n, info );
-        magma_ssetmatrix( n, n, work, n, dA, dA_offset, ldda, queue[1] );
+        chk( magma_ssetmatrix( n, n, work, 0, n, dA, dA_offset, ldda, queue[1] ));
     }
     else {
         if ( uplo == MagmaUpper ) {
@@ -122,25 +123,25 @@ magma_spotrf2_gpu(
             // using the left looking algorithm
             for( j = 0; j < n; j += nb ) {
                 // apply all previous updates to diagonal block
-                jb = min( nb, n-j );
+                jb = std::min( nb, n-j );
                 if ( j > 0 ) {
-                    magma_ssyrk( MagmaUpper, MagmaConjTrans, jb, j,
+                    chk( magma_ssyrk( MagmaUpper, MagmaTrans, jb, j,
                         m_one, dA(0,j), ldda,
-                          one, dA(j,j), ldda, queue[1]);
+                          one, dA(j,j), ldda, queue[1]));
                 }
                 
                 // apply all previous updates to block row right of diagonal block
                 if ( j+jb < n && j > 0) {
-                    magma_sgemm( MagmaConjTrans, MagmaNoTrans,
+                    chk( magma_sgemm( MagmaTrans, MagmaNoTrans,
                         jb, n-j-jb, j,
                         mz_one, dA(0, j   ), ldda,
                                 dA(0, j+jb), ldda,
-                        z_one,  dA(j, j+jb), ldda, queue[1]);
+                        z_one,  dA(j, j+jb), ldda, queue[1]));
                 }
                 
                 // simultaneous with above sgemm, transfer data, factor
                 // diagonal block on CPU, and test for positive definiteness
-                magma_sgetmatrix_async( jb, jb, dA(j,j), ldda, work, jb, queue[0], NULL );
+                chk( magma_sgetmatrix_async( jb, jb, dA(j,j), ldda, work, 0, jb, queue[0], NULL ));
                 magma_queue_sync(queue[0]);
                 lapackf77_spotrf( MagmaUpperStr, &jb, work, &jb, info );
                 if ( *info != 0 ) {
@@ -149,15 +150,15 @@ magma_spotrf2_gpu(
                     break;
                 }
                 //clFinish(queue[0]);
-                magma_ssetmatrix_async( jb, jb, work, jb, dA(j,j), ldda, queue[0], NULL );
+                chk( magma_ssetmatrix_async( jb, jb, work, 0, jb, dA(j,j), ldda, queue[0], NULL ));
                 magma_queue_sync(queue[0]);
                 // apply diagonal block to block row right of diagonal block
                 if ( j+jb < n ) {
-                    magma_strsm(
-                        MagmaLeft, MagmaUpper, MagmaConjTrans, MagmaNonUnit,
+                    chk( magma_strsm(
+                        MagmaLeft, MagmaUpper, MagmaTrans, MagmaNonUnit,
                         jb, n-j-jb,
                         z_one, dA(j, j),    ldda,
-                               dA(j, j+jb), ldda, queue[1]);
+                               dA(j, j+jb), ldda, queue[1]));
                 }
             }
         }
@@ -167,25 +168,25 @@ magma_spotrf2_gpu(
             // using the left looking algorithm
             for( j = 0; j < n; j += nb ) {
                 // apply all previous updates to diagonal block
-                jb = min( nb, n-j );
+                jb = std::min( nb, n-j );
                 if(j>0){
-                    magma_ssyrk( MagmaLower, MagmaNoTrans, jb, j,
+                    chk( magma_ssyrk( MagmaLower, MagmaNoTrans, jb, j,
                         m_one, dA(j, 0), ldda,
-                        one, dA(j, j), ldda, queue[1]);
+                        one, dA(j, j), ldda, queue[1]));
                 }
                 magma_queue_sync(queue[1]); 
                 // apply all previous updates to block column below diagonal block
                 if ( j+jb < n && j > 0) {
-                    magma_sgemm( MagmaNoTrans, MagmaConjTrans,
+                    chk( magma_sgemm( MagmaNoTrans, MagmaTrans,
                         n-j-jb, jb, j,
                         mz_one, dA(j+jb, 0), ldda,
                                 dA(j,    0), ldda,
-                        z_one,  dA(j+jb, j), ldda, queue[1]);
+                        z_one,  dA(j+jb, j), ldda, queue[1]));
                 }
                 
                 // simultaneous with above sgemm, transfer data, factor
                 // diagonal block on CPU, and test for positive definiteness
-                magma_sgetmatrix_async( jb, jb, dA(j,j), ldda, work, jb, queue[0], NULL );
+                chk( magma_sgetmatrix_async( jb, jb, dA(j,j), ldda, work, 0, jb, queue[0], NULL ));
                 magma_queue_sync(queue[0]);
                 lapackf77_spotrf( MagmaLowerStr, &jb, work, &jb, info );
                 if ( *info != 0 ) {
@@ -193,21 +194,21 @@ magma_spotrf2_gpu(
                     *info += j;
                     break;
                 }
-                magma_ssetmatrix_async( jb, jb, work, jb, dA(j,j), ldda, queue[0], NULL );
+                chk( magma_ssetmatrix_async( jb, jb, work, 0, jb, dA(j,j), ldda, queue[0], NULL ));
                 magma_queue_sync(queue[0]);
 
                 // apply diagonal block to block column below diagonal
                 if ( j+jb < n ) {
-                    magma_strsm(
-                        MagmaRight, MagmaLower, MagmaConjTrans, MagmaNonUnit,
+                    chk( magma_strsm(
+                        MagmaRight, MagmaLower, MagmaTrans, MagmaNonUnit,
                         n-j-jb, jb,
                         z_one, dA(j, j   ), ldda,
-                               dA(j+jb, j), ldda, queue[1]);
+                               dA(j+jb, j), ldda, queue[1]));
                 }
             }
         }
     }
-//  magma_free_cpu( work );
+//  chk( magma_free_cpu( work ));
     magma_queue_sync(queue[0]);
     magma_queue_sync(queue[1]);
     clEnqueueUnmapMemObject(queue[0], buffer, work, 0, NULL, NULL);

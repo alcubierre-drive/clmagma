@@ -1,31 +1,33 @@
 /*
-    -- clMAGMA (version 1.3.0) --
+    -- clMAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
                                                                                                               
-       @generated from zgesv_gpu.cpp normal z -> c, Sat Nov 15 00:21:37 2014
+       @generated from zgesv_gpu.cpp normal z -> c, Fri Jan 10 15:51:17 2014
 */
+
+#include <cstdio>
 #include "common_magma.h"
 
-extern "C" magma_int_t
-magma_cgesv_gpu(
-    magma_int_t n, magma_int_t nrhs,
-    magmaFloatComplex_ptr dA, size_t dA_offset, magma_int_t ldda,
-    magma_int_t *ipiv,
-    magmaFloatComplex_ptr dB, size_t dB_offset, magma_int_t lddb,
-    magma_queue_t queue,
-    magma_int_t *info )
+
+extern "C" magma_err_t
+magma_cgesv_gpu( magma_int_t n, magma_int_t nrhs,
+                 magmaFloatComplex_ptr dA, size_t dA_offset, magma_int_t ldda,
+                 magma_int_t *ipiv,
+                 magmaFloatComplex_ptr dB, size_t dB_offset, magma_int_t lddb,
+                 magma_err_t *info, magma_queue_t queue )
 {
 /*  -- clMagma (version 0.1) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
     Purpose
     =======
+
     Solves a system of linear equations
        A * X = B
     where A is a general N-by-N matrix and X and B are N-by-NRHS matrices.
@@ -38,6 +40,7 @@ magma_cgesv_gpu(
 
     Arguments
     =========
+
     N       (input) INTEGER
             The order of the matrix A.  N >= 0.
 
@@ -51,10 +54,10 @@ magma_cgesv_gpu(
             A = P*L*U; the unit diagonal elements of L are not stored.
 
     LDA     (input) INTEGER
-            The leading dimension of the array A.  LDA >= max(1,N).
+            The leading dimension of the array A.  LDA >= std::max(1,N).
 
-    IPIV    (output) INTEGER array, dimension (min(M,N))
-            The pivot indices; for 1 <= i <= min(M,N), row i of the
+    IPIV    (output) INTEGER array, dimension (std::min(M,N))
+            The pivot indices; for 1 <= i <= std::min(M,N), row i of the
             matrix was interchanged with row IPIV(i).
 
     B       (input/output) COMPLEX array on the GPU, dimension (LDB,NRHS)
@@ -62,21 +65,23 @@ magma_cgesv_gpu(
             On exit, the solution matrix X.
 
     LDB     (input) INTEGER
-            The leading dimension of the array B.  LDB >= max(1,N).
+            The leading dimension of the array B.  LDB >= std::max(1,N).
 
     INFO    (output) INTEGER
             = 0:  successful exit
             < 0:  if INFO = -i, the i-th argument had an illegal value
     =====================================================================    */
 
+    magma_err_t ret;
+
     *info = 0;
     if (n < 0) {
         *info = -1;
     } else if (nrhs < 0) {
         *info = -2;
-    } else if (ldda < max(1,n)) {
+    } else if (ldda < std::max(1,n)) {
         *info = -4;
-    } else if (lddb < max(1,n)) {
+    } else if (lddb < std::max(1,n)) {
         *info = -7;
     }
     if (*info != 0) {
@@ -89,10 +94,12 @@ magma_cgesv_gpu(
         return *info;
     }
 
-    magma_cgetrf_gpu( n, n, dA, dA_offset, ldda, ipiv, queue, info);
-    if ( *info == 0 ) {
-        magma_cgetrs_gpu( MagmaNoTrans, n, nrhs, dA, dA_offset, ldda, ipiv, dB, dB_offset, lddb, queue, info );
+    ret = magma_cgetrf_gpu( n, n, dA, dA_offset, ldda, ipiv, info, queue);
+    if ( (ret != MAGMA_SUCCESS) || (*info != 0) ) {
+        return ret;
     }
+
+    ret = magma_cgetrs_gpu( MagmaNoTrans, n, nrhs, dA, dA_offset, ldda, ipiv, dB, dB_offset, lddb, info, queue );
     
-    return *info;
+    return ret;
 }

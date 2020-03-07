@@ -1,32 +1,38 @@
-/*  -- clMAGMA (version 1.3.0) --
+/*  -- clMAGMA (version 1.1.0) --
     Univ. of Tennessee, Knoxville
     Univ. of California, Berkeley
     Univ. of Colorado, Denver
-    @date November 2014
+    @date January 2014
 
     @author Raffaele Solca
 
     @precisions normal d -> s
 */
+#include <cstdio>
 #include "common_magma.h"
+
 
 #define Z(ix, iy) (z + (ix) + ldz * (iy))
 
+extern "C"{
+    magma_int_t get_dstedx_smlsize()
+    {
+        return 25;
+    }
+}
 
 extern "C" magma_int_t
-magma_dstedx(
-    magma_range_t range, magma_int_t n, double vl, double vu,
-    magma_int_t il, magma_int_t iu, double* d, double* e, double* z, magma_int_t ldz,
-    double* work, magma_int_t lwork, magma_int_t* iwork, magma_int_t liwork,
-    magmaDouble_ptr dwork,
-    magma_queue_t queue,
-    magma_int_t* info)
+magma_dstedx(magma_vec_t range, magma_int_t n, double vl, double vu,
+             magma_int_t il, magma_int_t iu, double* d, double* e, double* z, magma_int_t ldz,
+             double* work, magma_int_t lwork, magma_int_t* iwork, magma_int_t liwork,
+             magmaDouble_ptr dwork, magma_int_t* info, magma_queue_t queue)
 {
-/*  -- MAGMA (version 1.3.0) --
+/*
+    -- MAGMA (version 1.1.0) --
     Univ. of Tennessee, Knoxville
     Univ. of California, Berkeley
     Univ. of Colorado, Denver
-    @date November 2014
+    @date January 2014
 
        .. Scalar Arguments ..
       CHARACTER          RANGE
@@ -41,6 +47,7 @@ magma_dstedx(
 
     Purpose
     =======
+
     DSTEDX computes some eigenvalues and, optionally, eigenvectors of a
     symmetric tridiagonal matrix using the divide and conquer method.
 
@@ -53,6 +60,7 @@ magma_dstedx(
 
     Arguments
     =========
+
     RANGE   (input) CHARACTER*1
             = 'A': all eigenvalues will be found.
             = 'V': all eigenvalues in the half-open interval (VL,VU]
@@ -88,7 +96,7 @@ magma_dstedx(
             of the symmetric tridiagonal matrix.
 
     LDZ     (input) INTEGER
-            The leading dimension of the array Z. LDZ >= max(1,N).
+            The leading dimension of the array Z. LDZ >= std::max(1,N).
 
     WORK    (workspace/output) DOUBLE PRECISION array,
                                            dimension (LWORK)
@@ -96,10 +104,10 @@ magma_dstedx(
 
     LWORK   (input) INTEGER
             The dimension of the array WORK.
-            If N > 1 then LWORK >= ( 1 + 4*N + N**2 ).
+            If N > 1 then LWORK must be at least ( 1 + 4*N + N**2 ).
             Note that  if N is less than or
             equal to the minimum divide size, usually 25, then LWORK need
-            only be max(1,2*(N-1)).
+            only be std::max(1,2*(N-1)).
 
             If LWORK = -1, then a workspace query is assumed; the routine
             only calculates the optimal size of the WORK array, returns
@@ -111,7 +119,7 @@ magma_dstedx(
 
     LIWORK  (input) INTEGER
             The dimension of the array IWORK.
-            LIWORK >= ( 3 + 5*N ).
+            LIWORK must be at least ( 3 + 5*N ).
             Note that if N is less than or
             equal to the minimum divide size, usually 25, then LIWORK
             need only be 1.
@@ -132,12 +140,15 @@ magma_dstedx(
 
     Further Details
     ===============
+
     Based on contributions by
        Jeff Rutter, Computer Science Division, University of California
        at Berkeley, USA
     Modified by Francoise Tisseur, University of Tennessee.
 
-    ===================================================================== */
+    =====================================================================
+*/
+    magma_vec_t range_ = range;
 
     double d_zero = 0.;
     double d_one  = 1.;
@@ -153,10 +164,10 @@ magma_dstedx(
 
     // Test the input parameters.
 
-    alleig = (range == MagmaRangeAll);
-    valeig = (range == MagmaRangeV);
-    indeig = (range == MagmaRangeI);
-    lquery = (lwork == -1 || liwork == -1);
+    alleig = lapackf77_lsame(lapack_const(range_), "A");
+    valeig = lapackf77_lsame(lapack_const(range_), "V");
+    indeig = lapackf77_lsame(lapack_const(range_), "I");
+    lquery = lwork == -1 || liwork == -1;
 
     *info = 0;
 
@@ -164,7 +175,7 @@ magma_dstedx(
         *info = -1;
     } else if (n < 0) {
         *info = -2;
-    } else if (ldz < max(1,n)) {
+    } else if (ldz < std::max(1,n)) {
         *info = -10;
     } else {
         if (valeig) {
@@ -172,9 +183,9 @@ magma_dstedx(
                 *info = -4;
             }
         } else if (indeig) {
-            if (il < 1 || il > max(1,n)) {
+            if (il < 1 || il > std::max(1,n)) {
                 *info = -5;
-            } else if (iu < min(n,il) || iu > n) {
+            } else if (iu < std::min(n,il) || iu > n) {
                 *info = -6;
             }
         }
@@ -183,7 +194,7 @@ magma_dstedx(
     if (*info == 0) {
         // Compute the workspace requirements
 
-        smlsiz = magma_get_smlsize_divideconquer();
+        smlsiz = get_dstedx_smlsize();
         if( n <= 1 ){
             lwmin = 1;
             liwmin = 1;
@@ -222,12 +233,16 @@ magma_dstedx(
     // solve the problem with another solver.
 
     if (n < smlsiz){
-        lapackf77_dsteqr("I", &n, d, e, z, &ldz, work, info);
+        char char_I[]= {'I', 0};
+        lapackf77_dsteqr(char_I, &n, d, e, z, &ldz, work, info);
     } else {
-        lapackf77_dlaset("F", &n, &n, &d_zero, &d_one, z, &ldz);
+        char char_F[]= {'F', 0};
+        lapackf77_dlaset(char_F, &n, &n, &d_zero, &d_one, z, &ldz);
 
         //Scale.
-        orgnrm = lapackf77_dlanst("M", &n, d, e);
+        char char_M[]= {'M', 0};
+
+        orgnrm = lapackf77_dlanst(char_M, &n, d, e);
 
         if (orgnrm == 0){
             work[0]  = lwmin;
@@ -261,22 +276,27 @@ magma_dstedx(
                     continue;
                 }
                 if (m > smlsiz){
-                    // Scale
-                    orgnrm = lapackf77_dlanst("M", &m, &d[start], &e[start]);
-                    lapackf77_dlascl("G", &izero, &izero, &orgnrm, &d_one, &m, &ione, &d[start], &m, info);
-                    magma_int_t mm = m-1;
-                    lapackf77_dlascl("G", &izero, &izero, &orgnrm, &d_one, &mm, &ione, &e[start], &mm, info);
 
-                    magma_dlaex0( m, &d[start], &e[start], Z(start, start), ldz, work, iwork, dwork, MagmaRangeAll, vl, vu, il, iu, queue, info);
+                    // Scale
+                    char char_G[] = {'G', 0};
+                    orgnrm = lapackf77_dlanst(char_M, &m, &d[start], &e[start]);
+                    lapackf77_dlascl(char_G, &izero, &izero, &orgnrm, &d_one, &m, &ione, &d[start], &m, info);
+                    magma_int_t mm = m-1;
+                    lapackf77_dlascl(char_G, &izero, &izero, &orgnrm, &d_one, &mm, &ione, &e[start], &mm, info);
+
+                    magma_dlaex0( m, &d[start], &e[start], Z(start, start), ldz, work, iwork, dwork, MagmaAllVec, vl, vu, il, iu, info, queue);
 
                     if( *info != 0) {
                         return MAGMA_SUCCESS;
                     }
 
                     // Scale Back
-                    lapackf77_dlascl("G", &izero, &izero, &d_one, &orgnrm, &m, &ione, &d[start], &m, info);
+                    lapackf77_dlascl(char_G, &izero, &izero, &d_one, &orgnrm, &m, &ione, &d[start], &m, info);
+
                 } else {
-                    lapackf77_dsteqr( "I", &m, &d[start], &e[start], Z(start, start), &ldz, work, info);
+
+                    char char_I[]= {'I', 0};
+                    lapackf77_dsteqr( char_I, &m, &d[start], &e[start], Z(start, start), &ldz, work, info);
                     if (*info != 0){
                         *info = (start+1) *(n+1) + end;
                     }
@@ -291,6 +311,7 @@ magma_dstedx(
             // (and the associated eigenvectors) into ascending order.
 
             if (m < n){
+
                 // Use Selection Sort to minimize swaps of eigenvectors
                 for (i = 1; i < n; ++i){
                     k = i-1;
@@ -308,20 +329,24 @@ magma_dstedx(
                     }
                 }
             }
-        } else {
-            // Scale
-            lapackf77_dlascl("G", &izero, &izero, &orgnrm, &d_one, &n, &ione, d, &n, info);
-            magma_int_t nm = n-1;
-            lapackf77_dlascl("G", &izero, &izero, &orgnrm, &d_one, &nm, &ione, e, &nm, info);
 
-            magma_dlaex0( n, d, e, z, ldz, work, iwork, dwork, range, vl, vu, il, iu, queue, info);
+        } else {
+
+            // Scale
+            char char_G[] = {'G', 0};
+            lapackf77_dlascl(char_G, &izero, &izero, &orgnrm, &d_one, &n, &ione, d, &n, info);
+            magma_int_t nm = n-1;
+            lapackf77_dlascl(char_G, &izero, &izero, &orgnrm, &d_one, &nm, &ione, e, &nm, info);
+
+            magma_dlaex0( n, d, e, z, ldz, work, iwork, dwork, range, vl, vu, il, iu, info, queue);
 
             if( *info != 0) {
                 return MAGMA_SUCCESS;
             }
 
             // Scale Back
-            lapackf77_dlascl("G", &izero, &izero, &d_one, &orgnrm, &n, &ione, d, &n, info);
+            lapackf77_dlascl(char_G, &izero, &izero, &d_one, &orgnrm, &n, &ione, d, &n, info);
+
         }
     }
 
@@ -329,4 +354,5 @@ magma_dstedx(
     iwork[0] = liwmin;
 
     return MAGMA_SUCCESS;
+
 } /* dstedx */

@@ -1,30 +1,32 @@
 /*
-    -- clMAGMA (version 1.3.0) --
+    -- clMAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
-
+       @date January 2014
+                                                                                                              
        @precisions normal z -> s d c
 */
+
+#include <cstdio>
 #include "common_magma.h"
 
-extern "C" magma_int_t
-magma_zposv_gpu(
-    magma_uplo_t uplo, magma_int_t n, magma_int_t nrhs,
-    magmaDoubleComplex_ptr dA, size_t dA_offset, magma_int_t ldda,
-    magmaDoubleComplex_ptr dB, size_t dB_offset, magma_int_t lddb,
-    magma_queue_t queue,
-    magma_int_t *info )
+
+extern "C" magma_err_t
+magma_zposv_gpu( magma_uplo_t uplo, magma_int_t n, magma_int_t nrhs,
+                 magmaDoubleComplex_ptr dA, size_t dA_offset, magma_int_t ldda,
+                 magmaDoubleComplex_ptr dB, size_t dB_offset, magma_int_t lddb,
+                 magma_err_t *info, magma_queue_t queue )
 {
 /*  -- clMagma (version 0.1) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
-
+       @date January 2014
+ 
     Purpose
     =======
+
     ZPOSV computes the solution to a complex system of linear equations
        A * X = B,
     where A is an N-by-N Hermitian positive definite matrix and X and B
@@ -38,6 +40,7 @@ magma_zposv_gpu(
 
     Arguments
     =========
+ 
     UPLO    (input) CHARACTER*1
             = 'U':  Upper triangle of A is stored;
             = 'L':  Lower triangle of A is stored.
@@ -62,30 +65,32 @@ magma_zposv_gpu(
             factorization dA = U**H*U or dA = L*L**H.
 
     LDDA    (input) INTEGER
-            The leading dimension of the array A.  LDA >= max(1,N).
+            The leading dimension of the array A.  LDA >= std::max(1,N).
 
     dB      (input/output) COMPLEX_16 array on the GPU, dimension (LDB,NRHS)
             On entry, the right hand side matrix B.
             On exit, the solution matrix X.
 
     LDDB    (input) INTEGER
-            The leading dimension of the array B.  LDB >= max(1,N).
+            The leading dimension of the array B.  LDB >= std::max(1,N).
 
     INFO    (output) INTEGER
             = 0:  successful exit
             < 0:  if INFO = -i, the i-th argument had an illegal value
     =====================================================================   */
 
-    *info = 0;
-    if ( uplo != MagmaUpper && uplo != MagmaLower )
+    magma_err_t ret;
+    
+    *info = 0 ;
+    if( (uplo != MagmaUpper) && (uplo != MagmaLower) )
         *info = -1;
-    if ( n < 0 )
+    if( n < 0 )
         *info = -2;
-    if ( nrhs < 0 )
+    if( nrhs < 0)
         *info = -3;
-    if ( ldda < max(1, n) )
+    if ( ldda < std::max(1, n) )
         *info = -5;
-    if ( lddb < max(1, n) )
+    if ( lddb < std::max(1, n) )
         *info = -7;
     if (*info != 0) {
         magma_xerbla( __func__, -(*info) );
@@ -97,9 +102,14 @@ magma_zposv_gpu(
         return *info;
     }
 
-    magma_zpotrf_gpu( uplo, n, dA, 0, ldda, queue, info );
-    if ( *info == 0 ) {
-        magma_zpotrs_gpu( uplo, n, nrhs, dA, 0, ldda, dB, 0, lddb, queue, info );
+    ret = magma_zpotrf_gpu(uplo, n, dA, 0, ldda, info, queue);
+    if ( (ret != MAGMA_SUCCESS) || ( *info != 0 ) ) {
+        return ret;
+    }
+
+    ret = magma_zpotrs_gpu(uplo, n, nrhs, dA, 0, ldda, dB, 0, lddb, info, queue);
+    if ( (ret != MAGMA_SUCCESS) || ( *info != 0 ) ) {
+        return ret;
     }
 
     return *info;

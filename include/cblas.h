@@ -1,6 +1,6 @@
 #ifndef CBLAS_H
 #define CBLAS_H
-#include <stddef.h>
+#include <cstddef>
 
 /*
  * Enumerated and derived types

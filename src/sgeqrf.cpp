@@ -1,29 +1,28 @@
 /*
-    -- clMAGMA (version 1.3.0) --
+    -- clMAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
        @author Stan Tomov
-       @generated from zgeqrf.cpp normal z -> s, Sat Nov 15 00:21:37 2014
+       @generated from zgeqrf.cpp normal z -> s, Fri Jan 10 15:51:18 2014
 
 */
 #include "common_magma.h"
 
-extern "C" magma_int_t
-magma_sgeqrf(
-    magma_int_t m, magma_int_t n,
-    float *A,    magma_int_t lda, float *tau,
-    float *work, magma_int_t lwork,
-    magma_queue_t* queue,
-    magma_int_t *info )
+extern "C" magma_err_t
+magma_sgeqrf(magma_int_t m, magma_int_t n,
+             float *A,    magma_int_t lda, float *tau,
+             float *work, magma_int_t lwork,
+             magma_int_t *info,
+             magma_queue_t* queue )
 {
-/*  -- clMAGMA (version 1.3.0) --
+/*  -- clMAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
     Purpose
     =======
@@ -45,19 +44,19 @@ magma_sgeqrf(
     A       (input/output) REAL array, dimension (LDA,N)
             On entry, the M-by-N matrix A.
             On exit, the elements on and above the diagonal of the array
-            contain the min(M,N)-by-N upper trapezoidal matrix R (R is
+            contain the std::min(M,N)-by-N upper trapezoidal matrix R (R is
             upper triangular if m >= n); the elements below the diagonal,
             with the array TAU, represent the orthogonal matrix Q as a
-            product of min(m,n) elementary reflectors (see Further
+            product of std::min(m,n) elementary reflectors (see Further
             Details).
 
             Higher performance is achieved if A is in pinned memory, e.g.
             allocated using magma_malloc_pinned.
 
     LDA     (input) INTEGER
-            The leading dimension of the array A.  LDA >= max(1,M).
+            The leading dimension of the array A.  LDA >= std::max(1,M).
 
-    TAU     (output) REAL array, dimension (min(M,N))
+    TAU     (output) REAL array, dimension (std::min(M,N))
             The scalar factors of the elementary reflectors (see Further
             Details).
 
@@ -68,7 +67,7 @@ magma_sgeqrf(
             allocated using magma_malloc_pinned.
 
     LWORK   (input) INTEGER
-            The dimension of the array WORK.  LWORK >= max( N*NB, 2*NB*NB ),
+            The dimension of the array WORK.  LWORK >= std::max( N*NB, 2*NB*NB ),
             where NB can be obtained through magma_get_sgeqrf_nb(M).
 
             If LWORK = -1, then a workspace query is assumed; the routine
@@ -85,7 +84,7 @@ magma_sgeqrf(
     ===============
     The matrix Q is represented as a product of elementary reflectors
 
-       Q = H(1) H(2) . . . H(k), where k = min(m,n).
+       Q = H(1) H(2) . . . H(k), where k = std::min(m,n).
 
     Each H(i) has the form
 
@@ -108,19 +107,19 @@ magma_sgeqrf(
     magma_int_t ib, ldda;
 
     *info = 0;
-    magma_int_t nb = magma_get_sgeqrf_nb(min(m, n));
+    magma_int_t nb = magma_get_sgeqrf_nb(std::min(m, n));
 
     // need 2*nb*nb to store T and upper triangle of V simultaneously
-    magma_int_t lwkopt = max(n*nb, 2*nb*nb);
+    magma_int_t lwkopt = std::max(n*nb, 2*nb*nb);
     work[0] = MAGMA_S_MAKE( (float)lwkopt, 0 );
     int lquery = (lwork == -1);
     if (m < 0) {
         *info = -1;
     } else if (n < 0) {
         *info = -2;
-    } else if (lda < max(1,m)) {
+    } else if (lda < std::max(1,m)) {
         *info = -4;
-    } else if (lwork < max(1, lwkopt) && ! lquery) {
+    } else if (lwork < std::max(1, lwkopt) && ! lquery) {
         *info = -7;
     }
     if (*info != 0) {
@@ -130,7 +129,7 @@ magma_sgeqrf(
     else if (lquery)
         return *info;
 
-    k = min(m,n);
+    k = std::min(m,n);
     if (k == 0) {
         work[0] = c_one;
         return *info;
@@ -149,7 +148,7 @@ magma_sgeqrf(
     }
 
     // allocate space for dA, dwork, and dT
-    if (MAGMA_SUCCESS != magma_smalloc( &dA, n*ldda + nb*lddwork + nb*nb )) {
+    if (MAGMA_SUCCESS != magma_smalloc( &dA, (n*ldda + nb*lddwork + nb*nb) )) {
         /* Switch to the "out-of-core" (out of GPU-memory) version */
         printf("non-GPU-resident version not implemented\n");
         return MAGMA_ERR_NOT_IMPLEMENTED;
@@ -168,29 +167,29 @@ magma_sgeqrf(
         /* Use blocked code initially.
            Asynchronously send the matrix to the GPU except the first panel. */
         magma_ssetmatrix_async( m, n-nb,
-                                A(0,nb), lda,
+                                A(0,nb), 0, lda,
                                 dA(0,nb), ldda, queue[0], NULL );
 
         old_i = 0;
         old_ib = nb;
         for (i = 0; i < k-nb; i += nb) {
-            ib = min(k-i, nb);
+            ib = std::min(k-i, nb);
             if (i>0) {
                 /* download i-th panel */
-                magma_queue_sync( queue[1] );
+                magma_queue_sync( queue[1] ); 
                 magma_sgetmatrix_async( m-i, ib,
                                         dA(i,i), ldda,
-                                        A(i,i), lda, queue[0], NULL );
+                                        A(i,i), 0, lda, queue[0], NULL );
 
                 /* Apply H' to A(i:m,i+2*ib:n) from the left */
-                magma_slarfb_gpu( MagmaLeft, MagmaConjTrans, MagmaForward, MagmaColumnwise,
+                magma_slarfb_gpu( MagmaLeft, MagmaTrans, MagmaForward, MagmaColumnwise,
                                   m-old_i, n-old_i-2*old_ib, old_ib,
                                   dA(old_i, old_i),          ldda, dT, dT_offset,    nb,
                                   dA(old_i, old_i+2*old_ib), ldda, dwork, dwork_offset, lddwork, queue[1]);
 
                 magma_sgetmatrix_async( i, ib,
                                         dA(0,i), ldda,
-                                        A(0,i), lda, queue[1], NULL );
+                                        A(0,i), 0, lda, queue[1], NULL );
                 magma_queue_sync( queue[0] );
             }
 
@@ -205,17 +204,18 @@ magma_sgeqrf(
             spanel_to_q(MagmaUpper, ib, A(i,i), lda, work+ib*ib);
 
             /* download the i-th V matrix */
-            magma_ssetmatrix_async( rows, ib, A(i,i), lda, dA(i,i), ldda, queue[0], NULL );
+            magma_ssetmatrix_async( rows, ib, A(i,i), 0, lda, dA(i,i), ldda, queue[0], NULL );
 
             /* download the T matrix */
             magma_queue_sync( queue[1] );
-            magma_ssetmatrix_async( ib, ib, work, ib, dT, dT_offset, nb, queue[0], NULL );
+            magma_ssetmatrix_async( ib, ib, work, 0, ib, dT, dT_offset, nb, queue[0], NULL );
             magma_queue_sync( queue[0] );
 
             if (i + ib < n) {
+
                 if (i+ib < k-nb) {
                     /* Apply H' to A(i:m,i+ib:i+2*ib) from the left (look-ahead) */
-                    magma_slarfb_gpu( MagmaLeft, MagmaConjTrans, MagmaForward, MagmaColumnwise,
+                    magma_slarfb_gpu( MagmaLeft, MagmaTrans, MagmaForward, MagmaColumnwise,
                                       rows, ib, ib,
                                       dA(i, i   ), ldda, dT, dT_offset,   nb,
                                       dA(i, i+ib), ldda, dwork, dwork_offset, lddwork, queue[1]);
@@ -224,7 +224,7 @@ magma_sgeqrf(
                 else {
                     /* After last panel, update whole trailing matrix. */
                     /* Apply H' to A(i:m,i+ib:n) from the left */
-                    magma_slarfb_gpu( MagmaLeft, MagmaConjTrans, MagmaForward, MagmaColumnwise,
+                    magma_slarfb_gpu( MagmaLeft, MagmaTrans, MagmaForward, MagmaColumnwise,
                                       rows, n-i-ib, ib,
                                       dA(i, i   ), ldda, dT, dT_offset,   nb,
                                       dA(i, i+ib), ldda, dwork, dwork_offset, lddwork, queue[1]);
@@ -243,7 +243,7 @@ magma_sgeqrf(
     if (i < k) {
         ib = n-i;
         if (i != 0) {
-           magma_sgetmatrix( m, ib, dA(0,i), ldda, A(0,i), lda, queue[1] );
+           magma_sgetmatrix( m, ib, dA(0,i), ldda, A(0,i), 0, lda, queue[1] );
         }
         magma_int_t rows = m-i;
         lapackf77_sgeqrf(&rows, &ib, A(i,i), &lda, tau+i, work, &lwork, info);
@@ -255,3 +255,4 @@ magma_sgeqrf(
     
     return *info;
 } /* magma_sgeqrf */
+

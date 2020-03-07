@@ -1,29 +1,28 @@
 /*
-    -- clMAGMA (version 1.3.0) --
+    -- clMAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
-       @generated from zungqr.cpp normal z -> s, Sat Nov 15 00:21:37 2014
+       @generated from zungqr.cpp normal z -> s, Fri Jan 10 15:51:18 2014
 
 */
+
+#include <cstdio>
 #include "common_magma.h"
 
-extern "C" magma_int_t
-magma_sorgqr(
-    magma_int_t m, magma_int_t n, magma_int_t k,
-    float *a, magma_int_t lda,
-    float *tau, magmaFloat_ptr dT, size_t dT_offset,
-    magma_int_t nb,
-    magma_queue_t queue,
-    magma_int_t *info )
+extern "C" magma_err_t
+magma_sorgqr(magma_int_t m, magma_int_t n, magma_int_t k,
+             float *a, magma_int_t lda,
+             float *tau, magmaFloat_ptr dT, size_t dT_offset,
+             magma_int_t nb, magma_int_t *info, magma_queue_t queue )
 {
-/*  -- clMAGMA (version 1.3.0) --
+/*  -- clMAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
     Purpose
     =======
@@ -55,7 +54,7 @@ magma_sorgqr(
             On exit, the M-by-N matrix Q.
 
     LDA     (input) INTEGER
-            The first dimension of the array A. LDA >= max(1,M).
+            The first dimension of the array A. LDA >= std::max(1,M).
 
     TAU     (input) REAL array, dimension (K)
             TAU(i) must contain the scalar factor of the elementary
@@ -80,12 +79,10 @@ magma_sorgqr(
     #define da_ref(i,j)     da, (da_offset + (j)*ldda + (i))
     #define t_ref(a_1)      dT, (dT_offset + (a_1)*nb)
 
-    float c_zero = MAGMA_S_ZERO;
-    
     magma_int_t  i__1, i__2, i__3;
     magma_int_t lwork, ldda;
-    magma_int_t i, ib, ki, kk, iinfo;
-    magma_int_t lddwork = min(m, n);
+    static magma_int_t i, ib, ki, kk, iinfo;
+    magma_int_t lddwork = std::min(m, n);
     float *work;
     magmaFloat_ptr da, dwork;
     size_t da_offset, dwork_offset;
@@ -98,7 +95,7 @@ magma_sorgqr(
         *info = -2;
     } else if ((k < 0) || (k > n)) {
         *info = -3;
-    } else if (lda < max(1,m)) {
+    } else if (lda < std::max(1,m)) {
         *info = -5;
     }
     if (*info != 0) {
@@ -134,10 +131,10 @@ magma_sorgqr(
         /*  Use blocked code after the last block.
             The first kk columns are handled by the block method. */
         ki = (k - nb - 1) / nb * nb;
-        kk = min(k, ki + nb);
+        kk = std::min(k, ki + nb);
 
         /* Set A(1:kk,kk+1:n) to zero. */
-        magmablas_slaset(MagmaFull, kk, n-kk, c_zero, c_zero, da_ref(0,kk), ldda, queue);
+        magmablas_slaset(MagmaFull, kk, n-kk, da_ref(0,kk), ldda, queue);
       }
     else
       kk = 0;
@@ -152,7 +149,7 @@ magma_sorgqr(
                          a_ref(kk, kk), &lda,
                          &tau[kk], work, &lwork, &iinfo);
         
-        magma_ssetmatrix(i__1, i__2, a_ref(kk, kk), lda, da_ref(kk, kk), ldda, queue);
+        magma_ssetmatrix(i__1, i__2, a_ref(kk, kk), 0, lda, da_ref(kk, kk), ldda, queue);
       }
 
     if (kk > 0)
@@ -160,12 +157,12 @@ magma_sorgqr(
         /* Use blocked code */
         for (i = ki; i >= 0; i-=nb)
           {
-            ib = min(nb, k - i);
+            ib = std::min(nb, k - i);
 
             /* Send the current panel to the GPU */
             i__2 = m - i;
             spanel_to_q(MagmaUpper, ib, a_ref(i,i), lda, work);
-            magma_ssetmatrix(i__2, ib, a_ref(i, i), lda, da_ref(i, i), ldda, queue);
+            magma_ssetmatrix(i__2, ib, a_ref(i, i), 0, lda, da_ref(i, i), ldda, queue);
                              
             if (i + ib < n)
               {
@@ -182,16 +179,16 @@ magma_sorgqr(
                              a_ref(i, i), &lda,
                              &tau[i], work, &lwork, &iinfo);
             magma_ssetmatrix_async( i__2, ib,
-                                    a_ref(i,i), lda,
+                                    a_ref(i,i), 0, lda,
                                     da_ref(i,i), ldda, queue, &event );
 
             /* Set rows 1:i-1 of current block to zero */
             i__2 = i + ib;
-            magmablas_slaset(MagmaFull, i, i__2 - i, c_zero, c_zero, da_ref(0,i), ldda, queue);
+            magmablas_slaset(MagmaFull, i, i__2 - i, da_ref(0,i), ldda, queue);
           }
       }
     
-    magma_sgetmatrix(m, n, da_ref(0, 0), ldda, a_ref(0, 0), lda, queue);
+    magma_sgetmatrix(m, n, da_ref(0, 0), ldda, a_ref(0, 0), 0, lda, queue);
     
     //cudaStreamDestroy(stream);
     magma_free( da );

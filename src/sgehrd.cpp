@@ -1,32 +1,30 @@
 /*
-    -- clMAGMA (version 1.3.0) --
+    -- clMAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
-       @generated from zgehrd.cpp normal z -> s, Sat Nov 15 00:21:37 2014
+       @generated from zgehrd.cpp normal z -> s, Fri Jan 10 15:51:18 2014
 
 */
 
-#include <stdio.h>
+#include <cstdio>
 #include "common_magma.h"
 
 extern "C" magma_int_t
-magma_sgehrd(
-    magma_int_t n, magma_int_t ilo, magma_int_t ihi,
-    float *a, magma_int_t lda,
-    float *tau,
-    float *work, magma_int_t lwork,
-    magmaFloat_ptr dT, size_t dT_offset,
-    magma_queue_t queue,
-    magma_int_t *info)
+magma_sgehrd(magma_int_t n, magma_int_t ilo, magma_int_t ihi,
+             float *a, magma_int_t lda,
+             float *tau,
+             float *work, magma_int_t lwork,
+             magmaFloat_ptr dT, size_t dT_offset,
+             magma_int_t *info, magma_queue_t queue)
 {
-/*  -- clMAGMA (version 1.3.0) --
+/*  -- clMAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
     Purpose
     =======
@@ -58,7 +56,7 @@ magma_sgehrd(
             reflectors. See Further Details.
 
     LDA     (input) INTEGER
-            The leading dimension of the array A.  LDA >= max(1,N).
+            The leading dimension of the array A.  LDA >= std::max(1,N).
 
     TAU     (output) REAL array, dimension (N-1)
             The scalar factors of the elementary reflectors (see Further
@@ -69,7 +67,7 @@ magma_sgehrd(
             On exit, if INFO = 0, WORK(1) returns the optimal LWORK.
 
     LWORK   (input) INTEGER
-            The length of the array WORK.  LWORK >= max(1,N).
+            The length of the array WORK.  LWORK >= std::max(1,N).
             For optimum performance LWORK >= N*NB, where NB is the
             optimal blocksize.
 
@@ -143,18 +141,18 @@ magma_sgehrd(
     --tau;
 
     *info = 0;
-    work[0] = MAGMA_S_MAKE( n * nb, 0 );
+    MAGMA_S_SET2REAL( work[0], (float) n * nb );
 
     lquery = lwork == -1;
     if (n < 0) {
         *info = -1;
-    } else if (ilo < 1 || ilo > max(1,n)) {
+    } else if (ilo < 1 || ilo > std::max(1,n)) {
         *info = -2;
-    } else if (ihi < min(ilo,n) || ihi > n) {
+    } else if (ihi < std::min(ilo,n) || ihi > n) {
         *info = -3;
-    } else if (lda < max(1,n)) {
+    } else if (lda < std::max(1,n)) {
         *info = -5;
-    } else if (lwork < max(1,n) && ! lquery) {
+    } else if (lwork < std::max(1,n) && ! lquery) {
         *info = -8;
     }
     if (*info != 0) {
@@ -197,13 +195,13 @@ magma_sgehrd(
     d_t = d_work;
     size_t d_t_offset = d_work_offset+nb*ldda;
 
-    magmablas_slaset( MagmaFull, nb, nb, c_zero, c_zero, d_A, d_A_offset+N*ldda, ldda, queue );
+    szero_nbxnb_block(nb, d_A, d_A_offset+N*ldda, ldda, queue);
 
     /* Set elements 1:ILO-1 and IHI:N-1 of TAU to zero */
     for (i__ = 1; i__ < ilo; ++i__)
       tau[i__] = c_zero;
    
-    for (i__ = max(1,ihi); i__ < n; ++i__)
+    for (i__ = std::max(1,ihi); i__ < n; ++i__)
       tau[i__] = c_zero;
 
     for(i__=0; i__< nb*nb; i__+=4)
@@ -242,11 +240,11 @@ magma_sgehrd(
       /* Use blocked code */
 
       /* Copy the matrix to the GPU */
-      magma_ssetmatrix( N, N-ilo+1, a+(ilo-1)*(lda), lda, d_A, d_A_offset, ldda, queue );
+      magma_ssetmatrix( N, N-ilo+1, a+(ilo-1)*(lda), 0, lda, d_A, d_A_offset, ldda, queue );
 
       for (i__ = ilo; i__ < ihi - nb; i__ += nb) {
         /* Computing MIN */
-        ib = min(nb, ihi - i__);
+        ib = std::min(nb, ihi - i__);
 
         /*   Reduce columns i:i+ib-1 to Hessenberg form, returning the
              matrices V and T of the block reflector H = I - V*T*V'
@@ -255,11 +253,11 @@ magma_sgehrd(
         /*   Get the current panel (no need for the 1st iteration) */
         magma_sgetmatrix( ihi-i__+1, ib,
                           d_A, (d_A_offset + (i__ - ilo)*ldda + i__ - 1), ldda,
-                          a   + (i__ -  1 )*lda  + i__ - 1, lda, queue );
+                          a   + (i__ -  1 )*lda  + i__ - 1, 0, lda, queue );
         
         magma_slahr2(ihi, i__, ib,
-                     d_A, d_A_offset +(i__ - ilo)*ldda, ldda,
-                     d_A, d_A_offset + N*ldda + 1, ldda,
+                     d_A, d_A_offset +(i__ - ilo)*ldda,
+                     d_A, d_A_offset + N*ldda + 1,
                      a   + (i__ -   1 )*(lda) , lda,
                      &tau[i__], t, nb, work, ldwork, queue);
 
@@ -267,13 +265,13 @@ magma_sgehrd(
         //d_t = dT + (i__ - ilo)*nb;
         d_t = dT;
         d_t_offset = dT_offset + (i__ - ilo)*nb;
-        magma_ssetmatrix( nb, nb, t, nb, d_t, d_t_offset, nb, queue );
+        magma_ssetmatrix( nb, nb, t, 0, nb, d_t, d_t_offset, nb, queue );
 
         magma_slahru(n, ihi, i__ - 1, ib,
                      a   + (i__ -  1 )*(lda), lda,
-                     d_A, d_A_offset + (i__ - ilo)*ldda, ldda,
-                     d_A, d_A_offset + (i__ - ilo)*ldda + i__ - 1, ldda,
-                     d_A, d_A_offset + N*ldda, ldda,
+                     d_A, d_A_offset + (i__ - ilo)*ldda,
+                     d_A, d_A_offset + (i__ - ilo)*ldda + i__ - 1,
+                     d_A, d_A_offset + N*ldda,
                      d_t, d_t_offset,
                      d_work, d_work_offset,
                      queue);
@@ -284,9 +282,9 @@ magma_sgehrd(
     if (!(nb < nbmin || nb >= nh))
         magma_sgetmatrix( n, n-i__+1,
                           d_A, d_A_offset + (i__-ilo)*ldda, ldda,
-                          a  + (i__-1)*(lda), lda, queue );
+                          a  + (i__-1)*(lda), 0, lda, queue );
     lapackf77_sgehd2(&n, &i__, &ihi, a, &lda, &tau[1], work, &iinfo);
-    work[0] = MAGMA_S_MAKE( iws, 0 );
+    MAGMA_S_SET2REAL( work[0], (float) iws );
     
     magma_free( da );
     magma_free_cpu(t);

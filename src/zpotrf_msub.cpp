@@ -1,13 +1,15 @@
 /*
-    -- MAGMA (version 1.3.0) --
+    -- MAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
        @precisions normal z -> s d c
 
 */
+
+#include <cstdio>
 #include "common_magma.h"
 
 #define USE_PINNED_CLMEMORY
@@ -15,19 +17,17 @@
 extern cl_context gContext;
 #endif
 
-extern "C" magma_int_t
-magma_zpotrf_msub(
-    magma_int_t num_subs, magma_int_t num_gpus, magma_uplo_t uplo, magma_int_t n, 
-    magmaDoubleComplex_ptr *d_lA, size_t dA_offset, 
-    magma_int_t ldda,
-    magma_queue_t *queues,
-    magma_int_t *info)
+extern "C" magma_err_t
+magma_zpotrf_msub(int num_subs, int num_gpus, magma_uplo_t uplo, magma_int_t n, 
+                  magmaDoubleComplex_ptr *d_lA, size_t dA_offset, 
+                  magma_int_t ldda, magma_int_t *info, 
+                  magma_queue_t *queues)
 {
-/*  -- clMAGMA (version 1.3.0) --
+/*  -- clMAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
     Purpose   
     =======   
@@ -63,9 +63,9 @@ magma_zpotrf_msub(
             factorization dA = U**H * U or dA = L * L**H.   
 
     LDDA     (input) INTEGER   
-            The leading dimension of the array dA.  LDDA >= max(1,N).
+            The leading dimension of the array dA.  LDDA >= std::max(1,N).
             To benefit from coalescent memory accesses LDDA must be
-            divisible by 16.
+            dividable by 16.
 
     INFO    (output) INTEGER   
             = 0:  successful exit   
@@ -75,8 +75,9 @@ magma_zpotrf_msub(
                   completed.   
     =====================================================================   */
 
+
     int tot_subs = num_subs * num_gpus;
-    magma_int_t err;
+    magma_err_t err;
     magma_int_t j, nb, d, lddp, h;
     magmaDoubleComplex *work;
     magmaDoubleComplex_ptr dwork[MagmaMaxGPUs];
@@ -89,7 +90,7 @@ magma_zpotrf_msub(
         *info = -2;
     } else if (uplo != MagmaUpper) {
         lddp = nb*(n/(nb*tot_subs));
-        if( n%(nb*tot_subs) != 0 ) lddp+=min(nb,n-tot_subs*lddp);
+        if( n%(nb*tot_subs) != 0 ) lddp+=std::min(nb,n-tot_subs*lddp);
         if( ldda < lddp ) *info = -4;
     } else if( ldda < n ) {
         *info = -4;
@@ -106,9 +107,9 @@ magma_zpotrf_msub(
             *info = MAGMA_ERR_HOST_ALLOC;
             return *info;
         }
-        magma_zgetmatrix( n, n, d_lA[0], 0, ldda, work, n, queues[0] );
+        magma_zgetmatrix( n, n, d_lA[0], 0, ldda, work, 0, n, queues[0] );
         lapackf77_zpotrf(lapack_uplo_const(uplo), &n, work, &n, info);
-        magma_zsetmatrix( n, n, work, n, d_lA[0], 0, ldda, queues[0] );
+        magma_zsetmatrix( n, n, work, 0, n, d_lA[0], 0, ldda, queues[0] );
         magma_free_cpu( work );
     } else {
         lddp = 32*((n+31)/32);
@@ -135,20 +136,20 @@ magma_zpotrf_msub(
         if (uplo == MagmaUpper) {
             /* with two queues for each device */
             magma_zpotrf2_msub(num_subs, num_gpus, uplo, n, n, 0, 0, nb, d_lA, 0, ldda, 
-                               dwork, lddp, work, n, h, queues, info);
+                               dwork, lddp, work, n, h, info, queues);
             //magma_zpotrf3_msub(num_subs, num_gpus, uplo, n, n, 0, 0, nb, d_lA, 0, ldda, 
-            //                   dwork, lddp, work, n, h, queues, info);
+            //                   dwork, lddp, work, n, h, info, queues);
             /* with three streams */
             //magma_zpotrf3_msub(num_gpus, uplo, n, n, 0, 0, nb, d_lA, ldda, dwork, lddp, work, n,  
             //                   h, stream, event, info);
         } else {
             /* with two queues for each device */
             magma_zpotrf2_msub(num_subs, num_gpus, uplo, n, n, 0, 0, nb, d_lA, 0, ldda, 
-                               dwork, lddp, work, nb*h, h, queues, info);
+                               dwork, lddp, work, nb*h, h, info, queues);
             //magma_zpotrf3_msub(num_subs, num_gpus, uplo, n, n, 0, 0, nb, d_lA, 0, ldda, 
-            //                   dwork, lddp, work, nb*h, h, queues, info);
+            //                   dwork, lddp, work, nb*h, h, info, queues);
             //magma_zpotrf4_msub(num_subs, num_gpus, uplo, n, n, 0, 0, nb, d_lA, 0, ldda, 
-            //                   dwork, lddp, work, nb*h, h, queues, info);
+            //                   dwork, lddp, work, nb*h, h, info, queues);
             /* with three streams */
             //magma_zpotrf3_msub(num_gpus, uplo, n, n, 0, 0, nb, d_lA, ldda, dwork, lddp, work, nb*h, 
             //                   h, stream, event, info);

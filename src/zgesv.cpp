@@ -1,29 +1,28 @@
 /*
-    -- clMAGMA (version 1.3.0) --
+    -- clMAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
        @precisions normal z -> s d c
 
 */
 #include "common_magma.h"
 
-extern "C" magma_int_t
-magma_zgesv(
-    magma_int_t n, magma_int_t nrhs,
-    magmaDoubleComplex *A, magma_int_t lda,
-    magma_int_t *ipiv,
-    magmaDoubleComplex *B, magma_int_t ldb,
-    magma_queue_t *queue,
-    magma_int_t *info )
+extern "C" magma_err_t
+magma_zgesv(     magma_int_t n, magma_int_t nrhs,
+                 magmaDoubleComplex *A, magma_int_t lda,
+                 magma_int_t *ipiv,
+                 magmaDoubleComplex *B, magma_int_t ldb,
+                 magma_int_t *info,
+                 magma_queue_t *queue )
 {
-/*  -- clMAGMA (version 1.3.0) --
+/*  -- clMAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
     Purpose
     =======
@@ -52,10 +51,10 @@ magma_zgesv(
             A = P*L*U; the unit diagonal elements of L are not stored.
 
     LDA     (input) INTEGER
-            The leading dimension of the array A.  LDA >= max(1,N).
+            The leading dimension of the array A.  LDA >= std::max(1,N).
 
-    IPIV    (output) INTEGER array, dimension (min(M,N))
-            The pivot indices; for 1 <= i <= min(M,N), row i of the
+    IPIV    (output) INTEGER array, dimension (std::min(M,N))
+            The pivot indices; for 1 <= i <= std::min(M,N), row i of the
             matrix was interchanged with row IPIV(i).
 
     B       (input/output) COMPLEX_16 array, dimension (LDB,NRHS)
@@ -63,7 +62,7 @@ magma_zgesv(
             On exit, the solution matrix X.
 
     LDB     (input) INTEGER
-            The leading dimension of the array B.  LDB >= max(1,N).
+            The leading dimension of the array B.  LDB >= std::max(1,N).
 
     INFO    (output) INTEGER
             = 0:  successful exit
@@ -77,9 +76,9 @@ magma_zgesv(
         *info = -1;
     } else if (nrhs < 0) {
         *info = -2;
-    } else if (lda < max(1,n)) {
+    } else if (lda < std::max(1,n)) {
         *info = -4;
-    } else if (ldb < max(1,n)) {
+    } else if (ldb < std::max(1,n)) {
         *info = -7;
     }
     if (*info != 0) {
@@ -107,18 +106,18 @@ magma_zgesv(
         magma_free( dA );
         goto CPU_INTERFACE;
     }
-    magma_zsetmatrix( n, n, A, lda, dA, 0, ldda, queue[0] );
-    magma_zgetrf2_gpu( n, n, dA, 0, ldda, ipiv, queue, info );
+    magma_zsetmatrix( n, n, A, 0, lda, dA, 0, ldda, queue[0] );
+    magma_zgetrf2_gpu( n, n, dA, 0, ldda, ipiv, info, queue );
     if ( *info == MAGMA_ERR_DEVICE_ALLOC ) {
         magma_free( dA );
         magma_free( dB );
         goto CPU_INTERFACE;
     }
-    magma_zgetmatrix( n, n, dA, 0, ldda, A, lda, queue[0] );
+    magma_zgetmatrix( n, n, dA, 0, ldda, A, 0, lda, queue[0] );
     if ( *info == 0 ) {
-        magma_zsetmatrix( n, nrhs, B, ldb, dB, 0, lddb, queue[0] );
-        magma_zgetrs_gpu( MagmaNoTrans, n, nrhs, dA, 0, ldda, ipiv, dB, 0, lddb, queue[0], info);
-        magma_zgetmatrix( n, nrhs, dB, 0, lddb, B, ldb, queue[0]);
+        magma_zsetmatrix( n, nrhs, B, 0, ldb, dB, 0, lddb, queue[0] );
+        magma_zgetrs_gpu( MagmaNoTrans, n, nrhs, dA, 0, ldda, ipiv, dB, 0, lddb, info, queue[0]);
+        magma_zgetmatrix( n, nrhs, dB, 0, lddb, B, 0, ldb, queue[0]);
     }
     magma_free( dA );
     magma_free( dB );
@@ -127,9 +126,10 @@ magma_zgesv(
 CPU_INTERFACE:
     /* If multi-GPU or allocation failed, use CPU interface and LAPACK.
      * Faster to use LAPACK for getrs than to copy A to GPU. */
-    magma_zgetrf( n, n, A, lda, ipiv, queue, info );
+    magma_zgetrf( n, n, A, lda, ipiv, info, queue );
     if ( *info == 0 ) {
-        lapackf77_zgetrs( MagmaNoTransStr, &n, &nrhs, A, &lda, ipiv, B, &ldb, info );
+       lapackf77_zgetrs( lapack_const(MagmaNoTrans), &n, &nrhs, 
+                         A, &lda, ipiv, B, &ldb, info );
     }
     return *info;
 }

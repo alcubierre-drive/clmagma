@@ -1,14 +1,14 @@
 /*
-    -- clMAGMA (version 1.3.0) --
+    -- clMAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
        @precisions normal d -> s
 
 */
-#include <stdio.h>
+#include <cstdio>
 #include "common_magma.h"
 
 #define PRECISION_d
@@ -21,21 +21,19 @@
 #define VERSION3
 
 extern "C" magma_int_t
-magma_dgeev(
-    magma_vec_t jobvl, magma_vec_t jobvr, magma_int_t n,
-    double *a, magma_int_t lda,
-    double *WR, double *WI,
-    double *vl, magma_int_t ldvl,
-    double *vr, magma_int_t ldvr,
-    double *work, magma_int_t lwork,
-    magma_queue_t queue,
-    magma_int_t *info)
+magma_dgeev(magma_vec_t jobvl, magma_vec_t jobvr, magma_int_t n,
+            double *a, magma_int_t lda,
+            double *WR, double *WI,
+            double *vl, magma_int_t ldvl,
+            double *vr, magma_int_t ldvr,
+            double *work, magma_int_t lwork,
+            magma_int_t *info, magma_queue_t queue)
 {
-/*  -- clMAGMA (version 1.3.0) --
+/*  -- clMAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
     Purpose
     =======
@@ -70,7 +68,7 @@ magma_dgeev(
             On exit, A has been overwritten.
 
     LDA     (input) INTEGER
-            The leading dimension of the array A.  LDA >= max(1,N).
+            The leading dimension of the array A.  LDA >= std::max(1,N).
 
     WR      (output) DOUBLE PRECISION array, dimension (N)
     WI      (output) DOUBLE PRECISION array, dimension (N)
@@ -122,7 +120,6 @@ magma_dgeev(
                   converged.
     =====================================================================    */
 
-    magma_int_t ione = 1;
     magma_int_t c__1 = 1;
     magma_int_t c__0 = 0;
     magma_int_t c_n1 = -1;
@@ -149,19 +146,21 @@ magma_dgeev(
     magmaDouble_ptr dT;
     //magma_timestr_t start, end;
 
-    const char* side_ = NULL;
+    char side[2] = {0, 0};
+    magma_vec_t jobvl_ = jobvl;
+    magma_vec_t jobvr_ = jobvr;
 
     *info = 0;
     lquery = lwork == -1;
-    wantvl = (jobvl == MagmaVec);
-    wantvr = (jobvr == MagmaVec);
-    if (! wantvl && jobvl != MagmaNoVec) {
+    wantvl = lapackf77_lsame(lapack_const(jobvl_), "V");
+    wantvr = lapackf77_lsame(lapack_const(jobvr_), "V");
+    if (! wantvl && ! lapackf77_lsame(lapack_const(jobvl_), "N")) {
         *info = -1;
-    } else if (! wantvr && jobvr != MagmaNoVec) {
+    } else if (! wantvr && ! lapackf77_lsame(lapack_const(jobvr_), "N")) {
         *info = -2;
     } else if (n < 0) {
         *info = -3;
-    } else if (lda < max(1,n)) {
+    } else if (lda < std::max(1,n)) {
         *info = -5;
     } else if ( (ldvl < 1) || (wantvl && (ldvl < n))) {
         *info = -9;
@@ -267,7 +266,7 @@ magma_dgeev(
      * Version 3 - LAPACK consistent MAGMA HRD + matrices T stored,
      */
     magma_dgehrd(n, ilo, ihi, &a[a_offset], lda,
-                 &work[itau], &work[iwrk], i__1, dT, 0, queue, &ierr);
+                 &work[itau], &work[iwrk], i__1, dT, 0, &ierr, queue);
 #endif
     //end = get_current_time();
     //printf("    Time for dgehrd = %5.2f sec\n", GetTimerValue(start,end)/1000.);
@@ -275,7 +274,7 @@ magma_dgeev(
     if (wantvl) {
       /*        Want left eigenvectors
                 Copy Householder vectors to VL */
-        side_ = "Left";
+        side[0] = 'L';
         lapackf77_dlacpy(MagmaLowerStr, &n, &n,
                          &a[a_offset], &lda, &vl[vl_offset], &ldvl);
 
@@ -297,7 +296,7 @@ magma_dgeev(
          * Version 3 - LAPACK consistent MAGMA HRD + matrices T stored
          */
         magma_dorghr(n, ilo, ihi, &vl[vl_offset], ldvl, &work[itau],
-                     dT, 0, nb, queue, &ierr);
+                     dT, 0, nb, &ierr, queue);
 #endif
         //end = get_current_time();
         //printf("    Time for dorghr = %5.2f sec\n", GetTimerValue(start,end)/1000.);
@@ -314,14 +313,14 @@ magma_dgeev(
         if (wantvr) {
           /* Want left and right eigenvectors
              Copy Schur vectors to VR */
-            side_ = "Both";
+            side[0] = 'B';
             lapackf77_dlacpy("F", &n, &n, &vl[vl_offset], &ldvl, &vr[vr_offset], &ldvr);
         }
 
     } else if (wantvr) {
         /*  Want right eigenvectors
             Copy Householder vectors to VR */
-        side_ = "Right";
+        side[0] = 'R';
         lapackf77_dlacpy("L", &n, &n, &a[a_offset], &lda, &vr[vr_offset], &ldvr);
 
         /*
@@ -341,7 +340,7 @@ magma_dgeev(
          * Version 3 - LAPACK consistent MAGMA HRD + matrices T stored
          */
         magma_dorghr(n, ilo, ihi, &vr[vr_offset], ldvr,
-                     &work[itau], dT, 0, nb, queue, &ierr);
+                     &work[itau], dT, 0, nb, &ierr, queue);
 #endif
         //end = get_current_time();
         //printf("    Time for dorghr = %5.2f sec\n", GetTimerValue(start,end)/1000.);
@@ -376,7 +375,7 @@ magma_dgeev(
          * Compute left and/or right eigenvectors
          *   (Workspace: need 4*N)
          */
-        lapackf77_dtrevc(side_, "B", select, &n, &a[a_offset], &lda, &vl[vl_offset], &ldvl,
+        lapackf77_dtrevc(side, "B", select, &n, &a[a_offset], &lda, &vl[vl_offset], &ldvl,
                 &vr[vr_offset], &ldvr, &n, &nout, &work[iwrk], &ierr);
     }
 
@@ -391,16 +390,16 @@ magma_dgeev(
         /* Normalize left eigenvectors and make largest component real */
         for (i__ = 1; i__ <= n; ++i__) {
             if ( WI[i__-1] == 0.) {
-                scl = magma_cblas_dnrm2(n, &vl[i__ * vl_dim1 + 1], 1);
+                scl = cblas_dnrm2(n, &vl[i__ * vl_dim1 + 1], 1);
                 scl = 1. / scl;
-                blasf77_dscal( &n, &scl, &vl[i__ * vl_dim1 + 1], &ione );
+                cblas_dscal(n, (scl), &vl[i__ * vl_dim1 + 1], 1);
             } else if (WI[i__-1] > 0.) {
-                d__1 = magma_cblas_dnrm2(n, &vl[ i__      * vl_dim1 + 1], 1);
-                d__2 = magma_cblas_dnrm2(n, &vl[(i__ + 1) * vl_dim1 + 1], 1);
+                d__1 = cblas_dnrm2(n, &vl[ i__      * vl_dim1 + 1], 1);
+                d__2 = cblas_dnrm2(n, &vl[(i__ + 1) * vl_dim1 + 1], 1);
                 scl = lapackf77_dlapy2(&d__1, &d__2);
                 scl = 1. / scl;
-                blasf77_dscal( &n, &scl, &vl[ i__      * vl_dim1 + 1], &ione );
-                blasf77_dscal( &n, &scl, &vl[(i__ + 1) * vl_dim1 + 1], &ione );
+                cblas_dscal(n, (scl), &vl[ i__      * vl_dim1 + 1], 1);
+                cblas_dscal(n, (scl), &vl[(i__ + 1) * vl_dim1 + 1], 1);
                 i__2 = n;
                 for (k = 1; k <= i__2; ++k) {
                     /* Computing 2nd power */
@@ -412,11 +411,11 @@ magma_dgeev(
                 /* Comment:
                    Fortran BLAS does not have to add 1
                    C       BLAS must add one to cblas_idamax */
-                k = blasf77_idamax( &n, &work[iwrk], &ione );  //+1;
+                k = cblas_idamax(n, &work[iwrk], 1)+1;
                 lapackf77_dlartg(&vl[k +  i__      * vl_dim1],
                                  &vl[k + (i__ + 1) * vl_dim1], &cs, &sn, &r__);
-                blasf77_drot( &n, &vl[ i__      * vl_dim1 + 1], &ione,
-                                  &vl[(i__ + 1) * vl_dim1 + 1], &ione, &cs, &sn );
+                cblas_drot(n, &vl[ i__      * vl_dim1 + 1], 1,
+                           &vl[(i__ + 1) * vl_dim1 + 1], 1, cs, (sn));
                 vl[k + (i__ + 1) * vl_dim1] = 0.;
             }
         }
@@ -433,15 +432,15 @@ magma_dgeev(
         /* Normalize right eigenvectors and make largest component real */
         for (i__ = 1; i__ <= n; ++i__) {
             if (WI[i__-1] == 0.) {
-                scl = 1. / magma_cblas_dnrm2(n, &vr[i__ * vr_dim1 + 1], 1);
-                blasf77_dscal( &n, &scl, &vr[i__ * vr_dim1 + 1], &ione );
+                scl = 1. / cblas_dnrm2(n, &vr[i__ * vr_dim1 + 1], 1);
+                cblas_dscal(n, (scl), &vr[i__ * vr_dim1 + 1], 1);
             } else if (WI[i__-1] > 0.) {
-                d__1 = magma_cblas_dnrm2(n, &vr[ i__      * vr_dim1 + 1], 1);
-                d__2 = magma_cblas_dnrm2(n, &vr[(i__ + 1) * vr_dim1 + 1], 1);
+                d__1 = cblas_dnrm2(n, &vr[ i__      * vr_dim1 + 1], 1);
+                d__2 = cblas_dnrm2(n, &vr[(i__ + 1) * vr_dim1 + 1], 1);
                 scl = lapackf77_dlapy2(&d__1, &d__2);
                 scl = 1. / scl;
-                blasf77_dscal( &n, &scl, &vr[ i__      * vr_dim1 + 1], &ione );
-                blasf77_dscal( &n, &scl, &vr[(i__ + 1) * vr_dim1 + 1], &ione );
+                cblas_dscal(n, (scl), &vr[ i__      * vr_dim1 + 1], 1);
+                cblas_dscal(n, (scl), &vr[(i__ + 1) * vr_dim1 + 1], 1);
                 i__2 = n;
                 for (k = 1; k <= i__2; ++k) {
                     /* Computing 2nd power */
@@ -453,11 +452,11 @@ magma_dgeev(
                 /* Comment:
                    Fortran BLAS does not have to add 1
                    C       BLAS must add one to cblas_idamax */
-                k = blasf77_idamax( &n, &work[iwrk], &ione );  //+1;
+                k = cblas_idamax(n, &work[iwrk], 1)+1;
                 lapackf77_dlartg(&vr[k + i__ * vr_dim1], &vr[k + (i__ + 1) * vr_dim1],
                         &cs, &sn, &r__);
-                blasf77_drot( &n, &vr[ i__      * vr_dim1 + 1], &ione,
-                                  &vr[(i__ + 1) * vr_dim1 + 1], &ione, &cs, &sn );
+                cblas_drot(n, &vr[ i__      * vr_dim1 + 1], 1,
+                              &vr[(i__ + 1) * vr_dim1 + 1], 1, cs, (sn));
                 vr[k + (i__ + 1) * vr_dim1] = 0.;
             }
         }
@@ -469,13 +468,13 @@ L50:
         i__1 = n - *info;
         /* Computing MAX */
         i__3 = n - *info;
-        i__2 = max(i__3,1);
+        i__2 = std::max(i__3,1);
         lapackf77_dlascl("G", &c__0, &c__0, &cscale, &anrm, &i__1, &c__1,
                          WR + (*info), &i__2, &ierr);
         i__1 = n - *info;
         /* Computing MAX */
         i__3 = n - *info;
-        i__2 = max(i__3,1);
+        i__2 = std::max(i__3,1);
         lapackf77_dlascl("G", &c__0, &c__0, &cscale, &anrm, &i__1, &c__1,
                 WI + (*info), &i__2, &ierr);
         if (*info > 0) {

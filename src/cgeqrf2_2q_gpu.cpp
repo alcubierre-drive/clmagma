@@ -1,83 +1,84 @@
 /*
-   -- clMAGMA (version 1.3.0) --
+   -- clMAGMA (version 1.1.0) --
    Univ. of Tennessee, Knoxville
    Univ. of California, Berkeley
    Univ. of Colorado, Denver
-   @date November 2014
+   @date January 2014
 
-   @generated from zgeqrf2_2q_gpu.cpp normal z -> c, Sat Nov 15 00:21:37 2014
+   @generated from zgeqrf2_2q_gpu.cpp normal z -> c, Fri Jan 10 15:51:18 2014
 
  */
+
+#include <cstdio>
 #include "common_magma.h"
 
 extern cl_context     gContext;
 
 // using 2 queues, 1 for comm, 1 for comp
 
-extern "C" magma_int_t
-magma_cgeqrf2_2q_gpu(
-    magma_int_t m, magma_int_t n,
-    magmaFloatComplex_ptr dA, size_t dA_offset, magma_int_t ldda,
-    magmaFloatComplex *tau,
-    magma_queue_t* queues,
-    magma_int_t *info)
+magma_err_t
+magma_cgeqrf2_2q_gpu( magma_int_t m, magma_int_t n,
+        magmaFloatComplex_ptr dA, size_t dA_offset, magma_int_t ldda,
+        magmaFloatComplex *tau, magma_err_t *info,
+        magma_queue_t* queues)
 {
-/*  -- clMAGMA (version 1.3.0) --
-    Univ. of Tennessee, Knoxville
-    Univ. of California, Berkeley
-    Univ. of Colorado, Denver
-    @date November 2014
+    /*  -- clMAGMA (version 1.1.0) --
+        Univ. of Tennessee, Knoxville
+        Univ. of California, Berkeley
+        Univ. of Colorado, Denver
+        @date January 2014
 
-    Purpose
-    =======
-    CGEQRF computes a QR factorization of a complex M-by-N matrix A:
-    A = Q * R.
+        Purpose
+        =======
+        CGEQRF computes a QR factorization of a complex M-by-N matrix A:
+        A = Q * R.
 
-    Arguments
-    =========
-    M       (input) INTEGER
-            The number of rows of the matrix A.  M >= 0.
+        Arguments
+        =========
+        M       (input) INTEGER
+        The number of rows of the matrix A.  M >= 0.
 
-    N       (input) INTEGER
-            The number of columns of the matrix A.  N >= 0.
+        N       (input) INTEGER
+        The number of columns of the matrix A.  N >= 0.
 
-    dA      (input/output) COMPLEX array on the GPU, dimension (LDDA,N)
-            On entry, the M-by-N matrix dA.
-            On exit, the elements on and above the diagonal of the array
-            contain the min(M,N)-by-N upper trapezoidal matrix R (R is
-            upper triangular if m >= n); the elements below the diagonal,
-            with the array TAU, represent the orthogonal matrix Q as a
-            product of min(m,n) elementary reflectors (see Further
-            Details).
+        dA      (input/output) COMPLEX array on the GPU, dimension (LDDA,N)
+        On entry, the M-by-N matrix dA.
+        On exit, the elements on and above the diagonal of the array
+        contain the std::min(M,N)-by-N upper trapezoidal matrix R (R is
+        upper triangular if m >= n); the elements below the diagonal,
+        with the array TAU, represent the orthogonal matrix Q as a
+        product of std::min(m,n) elementary reflectors (see Further
+        Details).
 
-    LDDA    (input) INTEGER
-            The leading dimension of the array dA.  LDDA >= max(1,M).
-            To benefit from coalescent memory accesses LDDA must be
-            divisible by 16.
+        LDDA    (input) INTEGER
+        The leading dimension of the array dA.  LDDA >= std::max(1,M).
+        To benefit from coalescent memory accesses LDDA must be
+        dividable by 16.
 
-    TAU     (output) COMPLEX array, dimension (min(M,N))
-            The scalar factors of the elementary reflectors (see Further
-            Details).
+        TAU     (output) COMPLEX array, dimension (std::min(M,N))
+        The scalar factors of the elementary reflectors (see Further
+        Details).
 
-    INFO    (output) INTEGER
-            = 0:  successful exit
-            < 0:  if INFO = -i, the i-th argument had an illegal value
-                  or another error occured, such as memory allocation failed.
+        INFO    (output) INTEGER
+        = 0:  successful exit
+        < 0:  if INFO = -i, the i-th argument had an illegal value
+        if INFO = -9, internal GPU memory allocation failed.
 
-    Further Details
-    ===============
-    The matrix Q is represented as a product of elementary reflectors
+        Further Details
+        ===============
 
-        Q = H(1) H(2) . . . H(k), where k = min(m,n).
+        The matrix Q is represented as a product of elementary reflectors
 
-    Each H(i) has the form
+        Q = H(1) H(2) . . . H(k), where k = std::min(m,n).
+
+        Each H(i) has the form
 
         H(i) = I - tau * v * v'
 
-    where tau is a complex scalar, and v is a complex vector with
-    v(1:i-1) = 0 and v(i) = 1; v(i+1:m) is stored on exit in A(i+1:m,i),
-    and tau in TAU(i).
-    =====================================================================    */
+        where tau is a complex scalar, and v is a complex vector with
+        v(1:i-1) = 0 and v(i) = 1; v(i+1:m) is stored on exit in A(i+1:m,i),
+        and tau in TAU(i).
+        =====================================================================    */
 
 #define dA(a_1,a_2)    dA, (dA_offset + (a_1) + (a_2)*(ldda))
 #define work_ref(a_1)  ( work + (a_1))
@@ -95,7 +96,7 @@ magma_cgeqrf2_2q_gpu(
         *info = -1;
     } else if (n < 0) {
         *info = -2;
-    } else if (ldda < max(1,m)) {
+    } else if (ldda < std::max(1,m)) {
         *info = -4;
     }
     if (*info != 0) {
@@ -103,7 +104,7 @@ magma_cgeqrf2_2q_gpu(
         return *info;
     }
 
-    k = min(m,n);
+    k = std::min(m,n);
     if (k == 0)
         return MAGMA_SUCCESS;
 
@@ -138,9 +139,9 @@ magma_cgeqrf2_2q_gpu(
         /* Use blocked code initially */
         old_i = 0; old_ib = nb;
         for (i = 0; i < k-nx; i += nb) {
-            ib = min(k-i, nb);
+            ib = std::min(k-i, nb);
             rows = m -i;
-            magma_cgetmatrix_async(rows, ib, dA(i, i), ldda, work_ref(i), ldwork, queues[0], NULL);
+            magma_cgetmatrix_async(rows, ib, dA(i, i), ldda, work_ref(i), 0, ldwork, queues[0], NULL);
             clFlush(queues[0]);  
             if (i>0){
                 /* Apply H' to A(i:m,i+2*ib:n) from the left */
@@ -149,7 +150,7 @@ magma_cgeqrf2_2q_gpu(
                         dA(old_i, old_i         ), ldda, dwork,0,      lddwork,
                         dA(old_i, old_i+2*old_ib), ldda, dwork,old_ib, lddwork, queues[1]);
 
-                magma_csetmatrix_async( old_ib, old_ib, work_ref(old_i), ldwork,
+                magma_csetmatrix_async( old_ib, old_ib, work_ref(old_i), 0, ldwork,
                         dA(old_i, old_i), ldda, queues[1], NULL); 
                 clFlush(queues[1]);
             }
@@ -165,12 +166,12 @@ magma_cgeqrf2_2q_gpu(
                     work_ref(i), &ldwork, tau+i, hwork, &ib);
 
             cpanel_to_q( MagmaUpper, ib, work_ref(i), ldwork, hwork+ib*ib );
-            magma_csetmatrix( rows, ib, work_ref(i), ldwork, dA(i,i), ldda, queues[0]);
+            magma_csetmatrix(rows, ib, work_ref(i), 0, ldwork, dA(i,i), ldda, queues[0]);
             cq_to_panel( MagmaUpper, ib, work_ref(i), ldwork, hwork+ib*ib );
 
             if (i + ib < n) 
             {
-                magma_csetmatrix( ib, ib, hwork, ib, dwork, 0, lddwork, queues[1]);
+                magma_csetmatrix(ib, ib, hwork, 0, ib, dwork, 0, lddwork, queues[1]);
 
                 if (i+nb < k-nx){
                     /* Apply H' to A(i:m,i+ib:i+2*ib) from the left */
@@ -184,7 +185,7 @@ magma_cgeqrf2_2q_gpu(
                             rows, n-i-ib, ib, 
                             dA(i, i   ), ldda, dwork,0,  lddwork, 
                             dA(i, i+ib), ldda, dwork,ib, lddwork, queues[1]);
-                    magma_csetmatrix( ib, ib, work_ref(i), ldwork, dA(i,i), ldda, queues[1]);
+                    magma_csetmatrix(ib, ib, work_ref(i), 0, ldwork, dA(i,i), ldda, queues[1]);
                     clFlush(queues[1]);
                 }
                 old_i  = i;
@@ -201,12 +202,12 @@ magma_cgeqrf2_2q_gpu(
     if (i < k) {
         ib   = n-i;
         rows = m-i;
-        magma_cgetmatrix( rows, ib, dA(i, i), ldda, work, rows, queues[0]);
+        magma_cgetmatrix(rows, ib, dA(i, i), ldda, work, 0, rows, queues[0]);
 
         lhwork = lwork - rows*ib;
         lapackf77_cgeqrf(&rows, &ib, work, &rows, tau+i, work+ib*rows, &lhwork, info);
 
-        magma_csetmatrix( rows, ib, work, rows, dA(i, i), ldda, queues[0]);
+        magma_csetmatrix(rows, ib, work, 0, rows, dA(i, i), ldda, queues[0]);
     }
 
     clEnqueueUnmapMemObject(queues[0], buffer, work, 0, NULL, NULL);

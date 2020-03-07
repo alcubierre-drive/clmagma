@@ -1,32 +1,28 @@
 /*
-    -- clMAGMA (version 1.3.0) --
+    -- clMAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
-       @generated from dgesvd.cpp normal d -> s, Sat Nov 15 00:21:37 2014
+       @generated from dgesvd.cpp normal d -> s, Fri Jan 10 15:51:18 2014
 
 */
 #include "common_magma.h"
 
-// TODO -- replace with updated code from CUDA magma !
-
 extern "C" magma_int_t
-magma_sgesvd(
-    magma_vec_t jobu, magma_vec_t jobvt, magma_int_t m_, magma_int_t n_,
-    float *a,    magma_int_t lda_, float *s,
-    float *u,    magma_int_t ldu_,
-    float *vt,   magma_int_t ldvt_,
-    float *work, magma_int_t lwork_,
-    magma_queue_t queue,
-    magma_int_t *info )
+magma_sgesvd(char jobu, char jobvt, magma_int_t m_, magma_int_t n_,
+             float *a,    magma_int_t lda_, float *s,
+             float *u,    magma_int_t ldu_,
+             float *vt,   magma_int_t ldvt_,
+             float *work, magma_int_t lwork_,
+             magma_int_t *info, magma_queue_t queue )
 {
-/*  -- clMAGMA (version 1.3.0) --
+/*  -- clMAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
     Purpose
     =======
@@ -37,10 +33,10 @@ magma_sgesvd(
          A = U * SIGMA * conjugate-transpose(V)
 
     where SIGMA is an M-by-N matrix which is zero except for its
-    min(m,n) diagonal elements, U is an M-by-M unitary matrix, and
+    std::min(m,n) diagonal elements, U is an M-by-M unitary matrix, and
     V is an N-by-N unitary matrix.  The diagonal elements of SIGMA
     are the singular values of A; they are real and non-negative, and
-    are returned in descending order.  The first min(m,n) columns of
+    are returned in descending order.  The first std::min(m,n) columns of
     U and V are the left and right singular vectors of A.
 
     Note that the routine returns V**H, not V.
@@ -50,9 +46,9 @@ magma_sgesvd(
     JOBU    (input) CHARACTER*1
             Specifies options for computing all or part of the matrix U:
             = 'A':  all M columns of U are returned in array U:
-            = 'S':  the first min(m,n) columns of U (the left singular
+            = 'S':  the first std::min(m,n) columns of U (the left singular
                     vectors) are returned in the array U;
-            = 'O':  the first min(m,n) columns of U (the left singular
+            = 'O':  the first std::min(m,n) columns of U (the left singular
                     vectors) are overwritten on the array A;
             = 'N':  no columns of U (no left singular vectors) are
                     computed.
@@ -61,9 +57,9 @@ magma_sgesvd(
             Specifies options for computing all or part of the matrix
             V**H:
             = 'A':  all N rows of V**H are returned in the array VT;
-            = 'S':  the first min(m,n) rows of V**H (the right singular
+            = 'S':  the first std::min(m,n) rows of V**H (the right singular
                     vectors) are returned in the array VT;
-            = 'O':  the first min(m,n) rows of V**H (the right singular
+            = 'O':  the first std::min(m,n) rows of V**H (the right singular
                     vectors) are overwritten on the array A;
             = 'N':  no rows of V**H (no right singular vectors) are
                     computed.
@@ -79,25 +75,25 @@ magma_sgesvd(
     A       (input/output) REAL array, dimension (LDA,N)
             On entry, the M-by-N matrix A.
             On exit,
-            if JOBU = 'O',  A is overwritten with the first min(m,n)
+            if JOBU = 'O',  A is overwritten with the first std::min(m,n)
                             columns of U (the left singular vectors,
                             stored columnwise);
-            if JOBVT = 'O', A is overwritten with the first min(m,n)
+            if JOBVT = 'O', A is overwritten with the first std::min(m,n)
                             rows of V**H (the right singular vectors,
                             stored rowwise);
             if JOBU .ne. 'O' and JOBVT .ne. 'O', the contents of A
                             are destroyed.
 
     LDA     (input) INTEGER
-            The leading dimension of the array A.  LDA >= max(1,M).
+            The leading dimension of the array A.  LDA >= std::max(1,M).
 
-    S       (output) REAL array, dimension (min(M,N))
+    S       (output) REAL array, dimension (std::min(M,N))
             The singular values of A, sorted so that S(i) >= S(i+1).
 
     U       (output) REAL array, dimension (LDU,UCOL)
-            (LDU,M) if JOBU = 'A' or (LDU,min(M,N)) if JOBU = 'S'.
+            (LDU,M) if JOBU = 'A' or (LDU,std::min(M,N)) if JOBU = 'S'.
             If JOBU = 'A', U contains the M-by-M unitary matrix U;
-            if JOBU = 'S', U contains the first min(m,n) columns of U
+            if JOBU = 'S', U contains the first std::min(m,n) columns of U
             (the left singular vectors, stored columnwise);
             if JOBU = 'N' or 'O', U is not referenced.
 
@@ -108,13 +104,13 @@ magma_sgesvd(
     VT      (output) REAL array, dimension (LDVT,N)
             If JOBVT = 'A', VT contains the N-by-N unitary matrix
             V**H;
-            if JOBVT = 'S', VT contains the first min(m,n) rows of
+            if JOBVT = 'S', VT contains the first std::min(m,n) rows of
             V**H (the right singular vectors, stored rowwise);
             if JOBVT = 'N' or 'O', VT is not referenced.
 
     LDVT    (input) INTEGER
             The leading dimension of the array VT.  LDVT >= 1; if
-            JOBVT = 'A', LDVT >= N; if JOBVT = 'S', LDVT >= min(M,N).
+            JOBVT = 'A', LDVT >= N; if JOBVT = 'S', LDVT >= std::min(M,N).
 
     WORK    (workspace/output) REAL array, dimension (MAX(1,LWORK))
             On exit, if INFO = 0, WORK(1) returns the optimal LWORK.
@@ -144,6 +140,8 @@ magma_sgesvd(
     ===================================================================== */
 
     /* Table of constant values */
+    char jobu_[2]  = {jobu, 0};
+    char jobvt_[2] = {jobvt, 0};
     magma_int_t *m     = &m_;
     magma_int_t *n     = &n_;
     magma_int_t *lda   = &lda_;
@@ -179,19 +177,19 @@ magma_sgesvd(
     
     /* Function Body */
     *info = 0;
-    mnthr  = (magma_int_t)( (float)(min( m_, n_ )) * 1.6 );
+    mnthr  = (magma_int_t)( (float)(std::min( m_, n_ )) * 1.6 );
     bdspac = 5*n_;
-    minmn = min(*m,*n);
-    wntua = (jobu == MagmaAllVec);
-    wntus = (jobu == MagmaSomeVec);
+    minmn = std::min(*m,*n);
+    wntua = lapackf77_lsame(jobu_, "A");
+    wntus = lapackf77_lsame(jobu_, "S");
     wntuas = wntua || wntus;
-    wntuo = (jobu == MagmaOverwriteVec);
-    wntun = (jobu == MagmaNoVec);
-    wntva = (jobvt == MagmaAllVec);
-    wntvs = (jobvt == MagmaSomeVec);
+    wntuo = lapackf77_lsame(jobu_, "O");
+    wntun = lapackf77_lsame(jobu_, "N");
+    wntva = lapackf77_lsame(jobvt_, "A");
+    wntvs = lapackf77_lsame(jobvt_, "S");
     wntvas = wntva || wntvs;
-    wntvo = (jobvt == MagmaOverwriteVec);
-    wntvn = (jobvt == MagmaNoVec);
+    wntvo = lapackf77_lsame(jobvt_, "O");
+    wntvn = lapackf77_lsame(jobvt_, "N");
     lquery = *lwork == -1;
   
     /* Test the input arguments */
@@ -203,7 +201,7 @@ magma_sgesvd(
         *info = -3;
     } else if (*n < 0) {
         *info = -4;
-    } else if (*lda < max(1,*m)) {
+    } else if (*lda < std::max(1,*m)) {
         *info = -6;
     } else if ((*ldu < 1) || (wntuas && (*ldu < *m)) ) {
         *info = -9;
@@ -212,7 +210,7 @@ magma_sgesvd(
     }
   
     /*     Compute workspace   */
-    lapackf77_sgesvd(lapack_const(jobu), lapack_const(jobvt), m, n, a, lda, s, u, ldu,
+    lapackf77_sgesvd(jobu_, jobvt_, m, n, a, lda, s, u, ldu,
                      vt, ldvt, work, &c_n1, info );
     maxwrk = (magma_int_t)work[0];
     if (*info == 0) {
@@ -313,7 +311,7 @@ magma_sgesvd(
                   i__2 = *lwork - iwork + 1;
                   magma_sgebrd(*n, *n, &a[a_offset], *lda, &s[1],
                              &work[ie], &work[itauq], &work[itaup],
-                             &work[iwork], i__2, queue, &ierr);
+                             &work[iwork], i__2, &ierr, queue);
                   ncvt = 0;
                   if (wntvo || wntvas) {
   
@@ -350,14 +348,14 @@ magma_sgesvd(
   
                 /* Computing MAX */
                   i__2 = *n << 2;
-                  if (*lwork >= *n * *n + max(i__2,bdspac)) {
+                  if (*lwork >= *n * *n + std::max(i__2,bdspac)) {
   
                     /* Sufficient workspace for a fast algorithm */
   
                       ir = 1;
                     /* Computing MAX */
                       i__2 = wrkbl, i__3 = *lda * *n + *n;
-                      if (*lwork >= max(i__2,i__3) + *lda * *n) {
+                      if (*lwork >= std::max(i__2,i__3) + *lda * *n) {
   
                         /* WORK(IU) is LDA by N, WORK(IR) is LDA by N */
   
@@ -366,7 +364,7 @@ magma_sgesvd(
                       } else /* if(complicated condition) */ {
                         /* Computing MAX */
                           i__2 = wrkbl, i__3 = *lda * *n + *n;
-                          if (*lwork >= max(i__2,i__3) + *n * *n) {
+                          if (*lwork >= std::max(i__2,i__3) + *n * *n) {
   
                             /* WORK(IU) is LDA by N, WORK(IR) is N by N */
   
@@ -415,7 +413,7 @@ magma_sgesvd(
                       i__2 = *lwork - iwork + 1;
                       magma_sgebrd(*n, *n, &work[ir], ldwrkr, &s[1],
                                  &work[ie], &work[itauq], &work[itaup],
-                                 &work[iwork], i__2, queue, &ierr);
+                                 &work[iwork], i__2, &ierr, queue);
   
                     /* Generate left vectors bidiagonalizing R */
                     /* (Workspace: need N*N+4*N, prefer N*N+3*N+N*NB) */
@@ -444,7 +442,7 @@ magma_sgesvd(
                                i__3) {
                         /* Computing MIN */
                           i__4 = *m - i__ + 1;
-                          chunk = min(i__4,ldwrku);
+                          chunk = std::min(i__4,ldwrku);
                           blasf77_sgemm("N", "N", &chunk, n, n, &c_b443, &a[i__ +
                                                                    a_dim1], lda, &work[ir], &ldwrkr, &c_b421, &
                                work[iu], &ldwrku);
@@ -468,7 +466,7 @@ magma_sgesvd(
                       i__3 = *lwork - iwork + 1;
                       magma_sgebrd(*m, *n, &a[a_offset], *lda, &s[1],
                                  &work[ie], &work[itauq], &work[itaup],
-                                 &work[iwork], i__3, queue, &ierr);
+                                 &work[iwork], i__3, &ierr, queue);
   
                     /* Generate left vectors bidiagonalizing A */
                     /* (Workspace: need 4*N, prefer 3*N+N*NB) */
@@ -496,14 +494,14 @@ magma_sgesvd(
   
                 /* Computing MAX */
                   i__3 = *n << 2;
-                  if (*lwork >= *n * *n + max(i__3,bdspac)) {
+                  if (*lwork >= *n * *n + std::max(i__3,bdspac)) {
   
                     /* Sufficient workspace for a fast algorithm */
   
                       ir = 1;
                     /* Computing MAX */
                       i__3 = wrkbl, i__2 = *lda * *n + *n;
-                      if (*lwork >= max(i__3,i__2) + *lda * *n) {
+                      if (*lwork >= std::max(i__3,i__2) + *lda * *n) {
   
                         /* WORK(IU) is LDA by N and WORK(IR) is LDA by N */
   
@@ -512,7 +510,7 @@ magma_sgesvd(
                       } else /* if(complicated condition) */ {
                         /* Computing MAX */
                           i__3 = wrkbl, i__2 = *lda * *n + *n;
-                          if (*lwork >= max(i__3,i__2) + *n * *n) {
+                          if (*lwork >= std::max(i__3,i__2) + *n * *n) {
   
                             /* WORK(IU) is LDA by N and WORK(IR) is N by N */
   
@@ -564,7 +562,7 @@ magma_sgesvd(
                       i__3 = *lwork - iwork + 1;
                       magma_sgebrd(*n, *n, &vt[vt_offset], *ldvt, &s[1],
                                  &work[ie], &work[itauq], &work[itaup],
-                                 &work[iwork], i__3, queue, &ierr);
+                                 &work[iwork], i__3, &ierr, queue);
                       lapackf77_slacpy("L", n, n, &vt[vt_offset], ldvt, &work[ir], &
                               ldwrkr);
   
@@ -603,7 +601,7 @@ magma_sgesvd(
                                i__2) {
                         /* Computing MIN */
                           i__4 = *m - i__ + 1;
-                          chunk = min(i__4,ldwrku);
+                          chunk = std::min(i__4,ldwrku);
                           blasf77_sgemm("N", "N", &chunk, n, n, &c_b443, &a[i__ +
                                                                    a_dim1], lda, &work[ir], &ldwrkr, &c_b421, &
                                work[iu], &ldwrku);
@@ -654,7 +652,7 @@ magma_sgesvd(
                       i__2 = *lwork - iwork + 1;
                       magma_sgebrd(*n, *n, &vt[vt_offset], *ldvt, &s[1],
                                  &work[ie], &work[itauq], &work[itaup],
-                                 &work[iwork], i__2, queue, &ierr);
+                                 &work[iwork], i__2, &ierr, queue);
   
                     /* Multiply Q in A by left vectors bidiagonalizing R */
                     /* (Workspace: need 3*N+M, prefer 3*N+M*NB) */
@@ -693,7 +691,7 @@ magma_sgesvd(
   
                     /* Computing MAX */
                       i__2 = *n << 2;
-                      if (*lwork >= *n * *n + max(i__2,bdspac)) {
+                      if (*lwork >= *n * *n + std::max(i__2,bdspac)) {
   
                         /* Sufficient workspace for a fast algorithm */
   
@@ -745,7 +743,7 @@ magma_sgesvd(
                           i__2 = *lwork - iwork + 1;
                           magma_sgebrd(*n, *n, &work[ir], ldwrkr, &s[1],
                                      &work[ie], &work[itauq], &work[itaup],
-                                     &work[iwork], i__2, queue, &ierr);
+                                     &work[iwork], i__2, &ierr, queue);
   
                         /* Generate left vectors bidiagonalizing R in WORK(IR) */
                         /* (Workspace: need N*N+4*N, prefer N*N+3*N+N*NB) */
@@ -811,7 +809,7 @@ magma_sgesvd(
                           i__2 = *lwork - iwork + 1;
                           magma_sgebrd(*n, *n, &a[a_offset], *lda, &s[1],
                                      &work[ie], &work[itauq], &work[itaup],
-                                     &work[iwork], i__2, queue, &ierr);
+                                     &work[iwork], i__2, &ierr, queue);
   
                         /* Multiply Q in U by left vectors bidiagonalizing R */
                         /* (Workspace: need 3*N+M, prefer 3*N+M*NB) */
@@ -841,7 +839,7 @@ magma_sgesvd(
   
                     /* Computing MAX */
                       i__2 = *n << 2;
-                      if (*lwork >= (*n << 1) * *n + max(i__2,bdspac)) {
+                      if (*lwork >= (*n << 1) * *n + std::max(i__2,bdspac)) {
   
                         /* Sufficient workspace for a fast algorithm */
   
@@ -906,7 +904,7 @@ magma_sgesvd(
                           i__2 = *lwork - iwork + 1;
                           magma_sgebrd(*n, *n, &work[iu], ldwrku, &s[1],
                                      &work[ie], &work[itauq], &work[itaup],
-                                     &work[iwork], i__2, queue, &ierr);
+                                     &work[iwork], i__2, &ierr, queue);
                           lapackf77_slacpy("U", n, n, &work[iu], &ldwrku, &work[ir], &
                                   ldwrkr);
   
@@ -989,7 +987,7 @@ magma_sgesvd(
                           i__2 = *lwork - iwork + 1;
                           magma_sgebrd(*n, *n, &a[a_offset], *lda, &s[1],
                                      &work[ie], &work[itauq], &work[itaup],
-                                     &work[iwork], i__2, queue, &ierr);
+                                     &work[iwork], i__2, &ierr, queue);
   
                         /* Multiply Q in U by left vectors bidiagonalizing R */
                         /* (Workspace: need 3*N+M, prefer 3*N+M*NB) */
@@ -1028,7 +1026,7 @@ magma_sgesvd(
   
                     /* Computing MAX */
                       i__2 = *n << 2;
-                      if (*lwork >= *n * *n + max(i__2,bdspac)) {
+                      if (*lwork >= *n * *n + std::max(i__2,bdspac)) {
   
                         /* Sufficient workspace for a fast algorithm */
   
@@ -1080,7 +1078,7 @@ magma_sgesvd(
                           i__2 = *lwork - iwork + 1;
                           magma_sgebrd(*n, *n, &work[iu], ldwrku, &s[1],
                                      &work[ie], &work[itauq], &work[itaup],
-                                     &work[iwork], i__2, queue, &ierr);
+                                     &work[iwork], i__2, &ierr, queue);
                           lapackf77_slacpy("U", n, n, &work[iu], &ldwrku, &vt[vt_offset],
                                 ldvt);
   
@@ -1162,7 +1160,7 @@ magma_sgesvd(
                           i__2 = *lwork - iwork + 1;
                           magma_sgebrd(*n, *n, &vt[vt_offset], *ldvt, &s[1],
                                      &work[ie], &work[itauq], &work[itaup],
-                                     &work[iwork], i__2, queue, &ierr);
+                                     &work[iwork], i__2, &ierr, queue);
   
                         /* Multiply Q in U by left bidiagonalizing vectors */
                         /* in VT */
@@ -1204,8 +1202,8 @@ magma_sgesvd(
                     /* no right singular vectors to be computed */
   
                     /* Computing MAX */
-                      i__2 = *n + *m, i__3 = *n << 2, i__2 = max(i__2,i__3);
-                      if (*lwork >= *n * *n + max(i__2,bdspac)) {
+                      i__2 = *n + *m, i__3 = *n << 2, i__2 = std::max(i__2,i__3);
+                      if (*lwork >= *n * *n + std::max(i__2,bdspac)) {
   
                         /* Sufficient workspace for a fast algorithm */
   
@@ -1259,7 +1257,7 @@ magma_sgesvd(
                           i__2 = *lwork - iwork + 1;
                           magma_sgebrd(*n, *n, &work[ir], ldwrkr, &s[1],
                                      &work[ie], &work[itauq], &work[itaup],
-                                     &work[iwork], i__2, queue, &ierr);
+                                     &work[iwork], i__2, &ierr, queue);
   
                         /* Generate left bidiagonalizing vectors in WORK(IR) */
                         /* (Workspace: need N*N+4*N, prefer N*N+3*N+N*NB) */
@@ -1330,7 +1328,7 @@ magma_sgesvd(
                           i__2 = *lwork - iwork + 1;
                           magma_sgebrd(*n, *n, &a[a_offset], *lda, &s[1],
                                      &work[ie], &work[itauq], &work[itaup],
-                                     &work[iwork], i__2, queue, &ierr);
+                                     &work[iwork], i__2, &ierr, queue);
   
                         /* Multiply Q in U by left bidiagonalizing vectors */
                         /* in A */
@@ -1360,8 +1358,8 @@ magma_sgesvd(
                     /* N right singular vectors to be overwritten on A */
   
                     /* Computing MAX */
-                      i__2 = *n + *m, i__3 = *n << 2, i__2 = max(i__2,i__3);
-                      if (*lwork >= (*n << 1) * *n + max(i__2,bdspac)) {
+                      i__2 = *n + *m, i__3 = *n << 2, i__2 = std::max(i__2,i__3);
+                      if (*lwork >= (*n << 1) * *n + std::max(i__2,bdspac)) {
   
                         /* Sufficient workspace for a fast algorithm */
   
@@ -1428,7 +1426,7 @@ magma_sgesvd(
                           i__2 = *lwork - iwork + 1;
                           magma_sgebrd(*n, *n, &work[iu], ldwrku, &s[1],
                                      &work[ie], &work[itauq], &work[itaup],
-                                     &work[iwork], i__2, queue, &ierr);
+                                     &work[iwork], i__2, &ierr, queue);
                           lapackf77_slacpy("U", n, n, &work[iu], &ldwrku, &work[ir], &
                                   ldwrkr);
   
@@ -1515,7 +1513,7 @@ magma_sgesvd(
                          i__2 = *lwork - iwork + 1;
                          magma_sgebrd(*n, *n, &a[a_offset], *lda, &s[1],
                                      &work[ie], &work[itauq], &work[itaup],
-                                     &work[iwork], i__2, queue, &ierr);
+                                     &work[iwork], i__2, &ierr, queue);
 
                         /* Multiply Q in U by left bidiagonalizing vectors */
                         /* in A */
@@ -1554,8 +1552,8 @@ magma_sgesvd(
                     /* N right singular vectors to be computed in VT */
  
                     /* Computing MAX */
-                     i__2 = *n + *m, i__3 = *n << 2, i__2 = max(i__2,i__3);
-                     if (*lwork >= *n * *n + max(i__2,bdspac)) {
+                     i__2 = *n + *m, i__3 = *n << 2, i__2 = std::max(i__2,i__3);
+                     if (*lwork >= *n * *n + std::max(i__2,bdspac)) {
  
                         /* Sufficient workspace for a fast algorithm */
  
@@ -1609,7 +1607,7 @@ magma_sgesvd(
                          i__2 = *lwork - iwork + 1;
                          magma_sgebrd(*n, *n, &work[iu], ldwrku, &s[1],
                                      &work[ie], &work[itauq], &work[itaup],
-                                     &work[iwork], i__2, queue, &ierr);
+                                     &work[iwork], i__2, &ierr, queue);
                          lapackf77_slacpy("U", n, n, &work[iu], &ldwrku, &vt[vt_offset],
                                 ldvt);
  
@@ -1696,7 +1694,7 @@ magma_sgesvd(
                          i__2 = *lwork - iwork + 1;
                          magma_sgebrd(*n, *n, &vt[vt_offset], *ldvt, &s[1],
                                      &work[ie], &work[itauq], &work[itaup],
-                                     &work[iwork], i__2, queue, &ierr);
+                                     &work[iwork], i__2, &ierr, queue);
  
                         /* Multiply Q in U by left bidiagonalizing vectors */
                         /* in VT */
@@ -1749,7 +1747,7 @@ magma_sgesvd(
              i__2 = *lwork - iwork + 1;
              magma_sgebrd(*m, *n, &a[a_offset], *lda, &s[1],
                          &work[ie], &work[itauq], &work[itaup],
-                         &work[iwork], i__2, queue, &ierr);
+                         &work[iwork], i__2, &ierr, queue);
              if (wntuas) {
  
                 /* If left singular vectors desired in U, copy result to U */
@@ -1884,7 +1882,7 @@ magma_sgesvd(
  
                  i__2 = *lwork - iwork + 1;
                  magma_sgebrd(*m, *m, &a[a_offset], *lda, &s[1], &work[ie], &work[
-                            itauq], &work[itaup], &work[iwork], i__2, queue, &ierr);
+                            itauq], &work[itaup], &work[iwork], i__2, &ierr, queue);
                  if (wntuo || wntuas) {
  
                     /* If left singular vectors desired, generate Q */
@@ -1922,14 +1920,14 @@ magma_sgesvd(
  
                 /* Computing MAX */
                  i__2 = *m << 2;
-                 if (*lwork >= *m * *m + max(i__2,bdspac)) {
+                 if (*lwork >= *m * *m + std::max(i__2,bdspac)) {
  
                     /* Sufficient workspace for a fast algorithm */
  
                      ir = 1;
                     /* Computing MAX */
                      i__2 = wrkbl, i__3 = *lda * *n + *m;
-                     if (*lwork >= max(i__2,i__3) + *lda * *m) {
+                     if (*lwork >= std::max(i__2,i__3) + *lda * *m) {
  
                         /* WORK(IU) is LDA by N and WORK(IR) is LDA by M */
  
@@ -1939,7 +1937,7 @@ magma_sgesvd(
                      } else /* if(complicated condition) */ {
                         /* Computing MAX */
                          i__2 = wrkbl, i__3 = *lda * *n + *m;
-                         if (*lwork >= max(i__2,i__3) + *m * *m) {
+                         if (*lwork >= std::max(i__2,i__3) + *m * *m) {
  
                             /* WORK(IU) is LDA by N and WORK(IR) is M by M */
  
@@ -1989,7 +1987,7 @@ magma_sgesvd(
  
                      i__2 = *lwork - iwork + 1;
                      magma_sgebrd(*m, *m, &work[ir], ldwrkr, &s[1], &work[ie], &work[
-                                itauq], &work[itaup], &work[iwork], i__2, queue, &ierr);
+                                itauq], &work[itaup], &work[iwork], i__2, &ierr, queue);
  
                     /* Generate right vectors bidiagonalizing L */
                     /* (Workspace: need M*M+4*M-1, prefer M*M+3*M+(M-1)*NB) */
@@ -2018,7 +2016,7 @@ magma_sgesvd(
                               i__3) {
                         /* Computing MIN */
                          i__4 = *n - i__ + 1;
-                         blk = min(i__4,chunk);
+                         blk = std::min(i__4,chunk);
                          blasf77_sgemm("N", "N", m, &blk, m, &c_b443, &work[ir], &
                                ldwrkr, &a[i__ * a_dim1 + 1], lda, &c_b421, &
                                work[iu], &ldwrku);
@@ -2041,7 +2039,7 @@ magma_sgesvd(
  
                      i__3 = *lwork - iwork + 1;
                      magma_sgebrd(*m, *n, &a[a_offset], *lda, &s[1], &work[ie], &work[
-                                itauq], &work[itaup], &work[iwork], i__3, queue, &ierr);
+                                itauq], &work[itaup], &work[iwork], i__3, &ierr, queue);
  
                     /* Generate right vectors bidiagonalizing A */
                     /* (Workspace: need 4*M, prefer 3*M+M*NB) */
@@ -2069,14 +2067,14 @@ magma_sgesvd(
  
                 /* Computing MAX */
                  i__3 = *m << 2;
-                 if (*lwork >= *m * *m + max(i__3,bdspac)) {
+                 if (*lwork >= *m * *m + std::max(i__3,bdspac)) {
  
                     /* Sufficient workspace for a fast algorithm */
  
                      ir = 1;
                     /* Computing MAX */
                      i__3 = wrkbl, i__2 = *lda * *n + *m;
-                     if (*lwork >= max(i__3,i__2) + *lda * *m) {
+                     if (*lwork >= std::max(i__3,i__2) + *lda * *m) {
  
                         /* WORK(IU) is LDA by N and WORK(IR) is LDA by M */
  
@@ -2086,7 +2084,7 @@ magma_sgesvd(
                      } else /* if(complicated condition) */ {
                         /* Computing MAX */
                          i__3 = wrkbl, i__2 = *lda * *n + *m;
-                         if (*lwork >= max(i__3,i__2) + *m * *m) {
+                         if (*lwork >= std::max(i__3,i__2) + *m * *m) {
  
                             /* WORK(IU) is LDA by N and WORK(IR) is M by M */
  
@@ -2136,7 +2134,7 @@ magma_sgesvd(
  
                      i__3 = *lwork - iwork + 1;
                      magma_sgebrd(*m, *m, &u[u_offset], *ldu, &s[1], &work[ie], &work[
-                                itauq], &work[itaup], &work[iwork], i__3, queue, &ierr);
+                                itauq], &work[itaup], &work[iwork], i__3, &ierr, queue);
                      lapackf77_slacpy("U", m, m, &u[u_offset], ldu, &work[ir], &ldwrkr);
  
                     /* Generate right vectors bidiagonalizing L in WORK(IR) */
@@ -2174,7 +2172,7 @@ magma_sgesvd(
                               i__2) {
                         /* Computing MIN */
                          i__4 = *n - i__ + 1;
-                         blk = min(i__4,chunk);
+                         blk = std::min(i__4,chunk);
                          blasf77_sgemm("N", "N", m, &blk, m, &c_b443, &work[ir], &
                                ldwrkr, &a[i__ * a_dim1 + 1], lda, &c_b421, &
                                work[iu], &ldwrku);
@@ -2221,7 +2219,7 @@ magma_sgesvd(
  
                      i__2 = *lwork - iwork + 1;
                      magma_sgebrd(*m, *m, &u[u_offset], *ldu, &s[1], &work[ie], &work[
-                                itauq], &work[itaup], &work[iwork], i__2, queue, &ierr);
+                                itauq], &work[itaup], &work[iwork], i__2, &ierr, queue);
  
                     /* Multiply right vectors bidiagonalizing L by Q in A */
                     /* (Workspace: need 3*M+N, prefer 3*M+N*NB) */
@@ -2260,7 +2258,7 @@ magma_sgesvd(
  
                     /* Computing MAX */
                      i__2 = *m << 2;
-                     if (*lwork >= *m * *m + max(i__2,bdspac)) {
+                     if (*lwork >= *m * *m + std::max(i__2,bdspac)) {
  
                         /* Sufficient workspace for a fast algorithm */
  
@@ -2312,7 +2310,7 @@ magma_sgesvd(
                          i__2 = *lwork - iwork + 1;
                          magma_sgebrd(*m, *m, &work[ir], ldwrkr, &s[1], &work[ie], &
                                  work[itauq], &work[itaup], &work[iwork],
-                                 i__2, queue, &ierr);
+                                 i__2, &ierr, queue);
  
                         /* Generate right vectors bidiagonalizing L in */
                         /* WORK(IR) */
@@ -2382,7 +2380,7 @@ magma_sgesvd(
                          i__2 = *lwork - iwork + 1;
                          magma_sgebrd(*m, *m, &a[a_offset], *lda, &s[1], &work[ie], &
                                  work[itauq], &work[itaup], &work[iwork],
-                                 i__2, queue, &ierr);
+                                 i__2, &ierr, queue);
  
                         /* Multiply right vectors bidiagonalizing L by Q in VT */
                         /* (Workspace: need 3*M+N, prefer 3*M+N*NB) */
@@ -2411,7 +2409,7 @@ magma_sgesvd(
  
                     /* Computing MAX */
                      i__2 = *m << 2;
-                     if (*lwork >= (*m << 1) * *m + max(i__2,bdspac)) {
+                     if (*lwork >= (*m << 1) * *m + std::max(i__2,bdspac)) {
  
                         /* Sufficient workspace for a fast algorithm */
  
@@ -2476,7 +2474,7 @@ magma_sgesvd(
                          i__2 = *lwork - iwork + 1;
                          magma_sgebrd(*m, *m, &work[iu], ldwrku, &s[1], &work[ie], &
                                  work[itauq], &work[itaup], &work[iwork],
-                                 i__2, queue, &ierr);
+                                 i__2, &ierr, queue);
                          lapackf77_slacpy("L", m, m, &work[iu], &ldwrku, &work[ir], &
                                  ldwrkr);
  
@@ -2559,7 +2557,7 @@ magma_sgesvd(
                          i__2 = *lwork - iwork + 1;
                          magma_sgebrd(*m, *m, &a[a_offset], *lda, &s[1], &work[ie], &
                                  work[itauq], &work[itaup], &work[iwork],
-                                 i__2, queue, &ierr);
+                                 i__2, &ierr, queue);
  
                         /* Multiply right vectors bidiagonalizing L by Q in VT */
                         /* (Workspace: need 3*M+N, prefer 3*M+N*NB) */
@@ -2597,7 +2595,7 @@ magma_sgesvd(
  
                     /* Computing MAX */
                      i__2 = *m << 2;
-                     if (*lwork >= *m * *m + max(i__2,bdspac)) {
+                     if (*lwork >= *m * *m + std::max(i__2,bdspac)) {
  
                         /* Sufficient workspace for a fast algorithm */
  
@@ -2649,7 +2647,7 @@ magma_sgesvd(
                          i__2 = *lwork - iwork + 1;
                          magma_sgebrd(*m, *m, &work[iu], ldwrku, &s[1], &work[ie], &
                                  work[itauq], &work[itaup], &work[iwork],
-                                 i__2, queue, &ierr);
+                                 i__2, &ierr, queue);
                          lapackf77_slacpy("L", m, m, &work[iu], &ldwrku, &u[u_offset],
                                  ldu);
  
@@ -2728,7 +2726,7 @@ magma_sgesvd(
                          i__2 = *lwork - iwork + 1;
                          magma_sgebrd(*m, *m, &u[u_offset], *ldu, &s[1], &work[ie], &
                                  work[itauq], &work[itaup], &work[iwork],
-                                 i__2, queue, &ierr);
+                                 i__2, &ierr, queue);
  
                         /* Multiply right bidiagonalizing vectors in U by Q */
                         /* in VT */
@@ -2769,8 +2767,8 @@ magma_sgesvd(
                     /* no left singular vectors to be computed */
  
                     /* Computing MAX */
-                     i__2 = *n + *m, i__3 = *m << 2, i__2 = max(i__2,i__3);
-                     if (*lwork >= *m * *m + max(i__2,bdspac)) {
+                     i__2 = *n + *m, i__3 = *m << 2, i__2 = std::max(i__2,i__3);
+                     if (*lwork >= *m * *m + std::max(i__2,bdspac)) {
  
                         /* Sufficient workspace for a fast algorithm */
  
@@ -2824,7 +2822,7 @@ magma_sgesvd(
                          i__2 = *lwork - iwork + 1;
                          magma_sgebrd(*m, *m, &work[ir], ldwrkr, &s[1], &work[ie], &
                                  work[itauq], &work[itaup], &work[iwork],
-                                 i__2, queue, &ierr);
+                                 i__2, &ierr, queue);
  
                         /* Generate right bidiagonalizing vectors in WORK(IR) */
                         /* (Workspace: need M*M+4*M-1, */
@@ -2896,7 +2894,7 @@ magma_sgesvd(
                          i__2 = *lwork - iwork + 1;
                          magma_sgebrd(*m, *m, &a[a_offset], *lda, &s[1], &work[ie], &
                                  work[itauq], &work[itaup], &work[iwork],
-                                 i__2, queue, &ierr);
+                                 i__2, &ierr, queue);
  
                         /* Multiply right bidiagonalizing vectors in A by Q */
                         /* in VT */
@@ -2925,8 +2923,8 @@ magma_sgesvd(
                     /* M left singular vectors to be overwritten on A */
  
                     /* Computing MAX */
-                     i__2 = *n + *m, i__3 = *m << 2, i__2 = max(i__2,i__3);
-                     if (*lwork >= (*m << 1) * *m + max(i__2,bdspac)) {
+                     i__2 = *n + *m, i__3 = *m << 2, i__2 = std::max(i__2,i__3);
+                     if (*lwork >= (*m << 1) * *m + std::max(i__2,bdspac)) {
  
                         /* Sufficient workspace for a fast algorithm */
  
@@ -2993,7 +2991,7 @@ magma_sgesvd(
                          i__2 = *lwork - iwork + 1;
                          magma_sgebrd(*m, *m, &work[iu], ldwrku, &s[1], &work[ie], &
                                  work[itauq], &work[itaup], &work[iwork],
-                                 i__2, queue, &ierr);
+                                 i__2, &ierr, queue);
                          lapackf77_slacpy("L", m, m, &work[iu], &ldwrku, &work[ir], &
                                  ldwrkr);
  
@@ -3080,7 +3078,7 @@ magma_sgesvd(
                          i__2 = *lwork - iwork + 1;
                          magma_sgebrd(*m, *m, &a[a_offset], *lda, &s[1], &work[ie], &
                                  work[itauq], &work[itaup], &work[iwork],
-                                 i__2, queue, &ierr);
+                                 i__2, &ierr, queue);
  
                         /* Multiply right bidiagonalizing vectors in A by Q */
                         /* in VT */
@@ -3118,8 +3116,8 @@ magma_sgesvd(
                     /* M left singular vectors to be computed in U */
  
                     /* Computing MAX */
-                     i__2 = *n + *m, i__3 = *m << 2, i__2 = max(i__2,i__3);
-                     if (*lwork >= *m * *m + max(i__2,bdspac)) {
+                     i__2 = *n + *m, i__3 = *m << 2, i__2 = std::max(i__2,i__3);
+                     if (*lwork >= *m * *m + std::max(i__2,bdspac)) {
  
                         /* Sufficient workspace for a fast algorithm */
  
@@ -3173,7 +3171,7 @@ magma_sgesvd(
                          i__2 = *lwork - iwork + 1;
                          magma_sgebrd(*m, *m, &work[iu], ldwrku, &s[1], &work[ie], &
                                  work[itauq], &work[itaup], &work[iwork],
-                                 i__2, queue, &ierr);
+                                 i__2, &ierr, queue);
                          lapackf77_slacpy("L", m, m, &work[iu], &ldwrku, &u[u_offset],
                                  ldu);
  
@@ -3256,7 +3254,7 @@ magma_sgesvd(
                          i__2 = *lwork - iwork + 1;
                          magma_sgebrd(*m, *m, &u[u_offset], *ldu, &s[1], &work[ie], &
                                  work[itauq], &work[itaup], &work[iwork],
-                                 i__2, queue, &ierr);
+                                 i__2, &ierr, queue);
  
                         /* Multiply right bidiagonalizing vectors in U by Q */
                         /* in VT */
@@ -3307,7 +3305,7 @@ magma_sgesvd(
  
              i__2 = *lwork - iwork + 1;
              magma_sgebrd(*m, *n, &a[a_offset], *lda, &s[1], &work[ie], &work[itauq], &
-                     work[itaup], &work[iwork], i__2, queue, &ierr);
+                     work[itaup], &work[iwork], i__2, &ierr, queue);
              if (wntuas) {
  
                 /* If left singular vectors desired in U, copy result to U */

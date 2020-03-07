@@ -1,9 +1,9 @@
 /*
-    -- clMAGMA (version 1.3.0) --
+    -- clMAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
        @author Stan Tomov
        @author Raffaele Solca
@@ -11,24 +11,23 @@
        @precisions normal z -> s d c
 
 */
+#include <cstdio>
 #include "common_magma.h"
 
 extern "C" magma_int_t
-magma_zunmtr(
-    magma_side_t side, magma_uplo_t uplo, magma_trans_t trans,
-    magma_int_t m, magma_int_t n,
-    magmaDoubleComplex *a,    magma_int_t lda,
-    magmaDoubleComplex *tau,
-    magmaDoubleComplex *c,    magma_int_t ldc,
-    magmaDoubleComplex *work, magma_int_t lwork,
-    magma_queue_t queue,
-    magma_int_t *info)
+magma_zunmtr(magma_side_t side, magma_uplo_t uplo, magma_trans_t trans,
+             magma_int_t m, magma_int_t n,
+             magmaDoubleComplex *a,    magma_int_t lda,
+             magmaDoubleComplex *tau,
+             magmaDoubleComplex *c,    magma_int_t ldc,
+             magmaDoubleComplex *work, magma_int_t lwork,
+             magma_int_t *info, magma_queue_t queue)
 {
-/*  -- MAGMA (version 1.3.0) --
+/*  -- MAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
     Purpose
     =======
@@ -76,7 +75,7 @@ magma_zunmtr(
 
     LDA     (input) INTEGER
             The leading dimension of the array A.
-            LDA >= max(1,M) if SIDE = 'L'; LDA >= max(1,N) if SIDE = 'R'.
+            LDA >= std::max(1,M) if SIDE = 'L'; LDA >= std::max(1,N) if SIDE = 'R'.
 
     TAU     (input) COMPLEX_16 array, dimension
                                  (M-1) if SIDE = 'L'
@@ -89,15 +88,15 @@ magma_zunmtr(
             On exit, C is overwritten by Q*C or Q**H * C or C * Q**H or C*Q.
 
     LDC     (input) INTEGER
-            The leading dimension of the array C. LDC >= max(1,M).
+            The leading dimension of the array C. LDC >= std::max(1,M).
 
     WORK    (workspace/output) COMPLEX_16 array, dimension (MAX(1,LWORK))
             On exit, if INFO = 0, WORK(1) returns the optimal LWORK.
 
     LWORK   (input) INTEGER
             The dimension of the array WORK.
-            If SIDE = 'L', LWORK >= max(1,N);
-            if SIDE = 'R', LWORK >= max(1,M).
+            If SIDE = 'L', LWORK >= std::max(1,N);
+            if SIDE = 'R', LWORK >= std::max(1,M).
             For optimum performance LWORK >= N*NB if SIDE = 'L', and
             LWORK >= M*NB if SIDE = 'R', where NB is the optimal
             blocksize.
@@ -114,6 +113,9 @@ magma_zunmtr(
    
     magmaDoubleComplex c_one = MAGMA_Z_ONE;
 
+    magma_side_t side_  = side;
+    magma_uplo_t uplo_  = uplo;
+    magma_trans_t trans_ = trans;
     magma_int_t  i__2;
     magma_int_t i1, i2, nb, mi, ni, nq, nw;
     int left, upper, lquery;
@@ -121,8 +123,8 @@ magma_zunmtr(
     magma_int_t lwkopt;
 
     *info = 0;
-    left   = (side == MagmaLeft);
-    upper  = (uplo == MagmaUpper);
+    left   = lapackf77_lsame(lapack_const(side_), "L");
+    upper  = lapackf77_lsame(lapack_const(uplo_), "U");
     lquery = lwork == -1;
 
     /* NQ is the order of Q and NW is the minimum dimension of WORK */
@@ -133,30 +135,31 @@ magma_zunmtr(
         nq = n;
         nw = m;
     }
-    if (! left && side != MagmaRight) {
+    if (! left && ! lapackf77_lsame(lapack_const(side_), "R")) {
         *info = -1;
-    } else if (! upper && uplo != MagmaLower) {
+    } else if (! upper && ! lapackf77_lsame(lapack_const(uplo_), "L")) {
         *info = -2;
-    } else if (trans != MagmaNoTrans &&
-               trans != MagmaConjTrans) {
+    } else if (! lapackf77_lsame(lapack_const(trans_), "N") &&
+               ! lapackf77_lsame(lapack_const(trans_), "C")) {
         *info = -3;
     } else if (m < 0) {
         *info = -4;
     } else if (n < 0) {
         *info = -5;
-    } else if (lda < max(1,nq)) {
+    } else if (lda < std::max(1,nq)) {
         *info = -7;
-    } else if (ldc < max(1,m)) {
+    } else if (ldc < std::max(1,m)) {
         *info = -10;
-    } else if (lwork < max(1,nw) && ! lquery) {
+    } else if (lwork < std::max(1,nw) && ! lquery) {
         *info = -12;
     }
 
-    nb = 32;
-    lwkopt = max(1,nw) * nb;
-    if (*info == 0) {
-        work[0] = MAGMA_Z_MAKE( lwkopt, 0 );
-    }
+    if (*info == 0)
+      {
+        nb = 32;
+        lwkopt = std::max(1,nw) * nb;
+        MAGMA_Z_SET2REAL( work[0], lwkopt );
+      }
 
     if (*info != 0) {
         magma_xerbla( __func__, -(*info) );
@@ -180,13 +183,17 @@ magma_zunmtr(
         ni = n - 1;
     }
 
-    if (upper) {
+    if (upper)
+      {
         /* Q was determined by a call to SSYTRD with UPLO = 'U' */
         i__2 = nq - 1;
+        //lapackf77_zunmql(side_, trans_, &mi, &ni, &i__2, &a[lda], &lda,
+        //                 tau, c, &ldc, work, &lwork, &iinfo);
         magma_zunmql(side, trans, mi, ni, i__2, &a[lda], lda, tau,
-                     c, ldc, work, lwork, queue, &iinfo);
-    }
-    else {
+                     c, ldc, work, lwork, &iinfo, queue);
+      }
+    else
+      {
         /* Q was determined by a call to SSYTRD with UPLO = 'L' */
         if (left) {
             i1 = 1;
@@ -197,10 +204,10 @@ magma_zunmtr(
         }
         i__2 = nq - 1;
         magma_zunmqr(side, trans, mi, ni, i__2, &a[1], lda, tau,
-                     &c[i1 + i2 * ldc], ldc, work, lwork, queue, &iinfo);
-    }
+                     &c[i1 + i2 * ldc], ldc, work, lwork, &iinfo, queue);
+      }
 
-    work[0] = MAGMA_Z_MAKE( lwkopt, 0 );
+    MAGMA_Z_SET2REAL( work[0], lwkopt );
 
     return *info;
 } /* magma_zunmtr */

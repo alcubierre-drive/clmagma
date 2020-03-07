@@ -1,19 +1,22 @@
 /*
-    -- clMAGMA (version 1.3.0) --
+    -- clMAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
        @precisions normal z -> s d c
 
 */
+#include <cstdio>
 #include "common_magma.h"
 
 #include "trace.h"
 
-#define Alo(i, j)      (a   +              ((j)+off_j)*lda  + (nb*(((i)/nb)%h)+off_i))
-#define Aup(i, j)      (a   +  (nb*(((j)/nb)%h)+off_j)*lda  +               (i+off_i))
+#define Alo(i, j)  (a   +              ((j)+off_j)*lda  + (nb*(((i)/nb)%h)+off_i))
+#define Aup(i, j)  (a   +  (nb*(((j)/nb)%h)+off_j)*lda  +               (i+off_i))
+#define Alo_off(i, j)   a,             ((j)+off_j)*lda  + (nb*(((i)/nb)%h)+off_i)
+#define Aup_off(i, j)   a, (nb*(((j)/nb)%h)+off_j)*lda  +               (i+off_i)
 
 #define dlA(id, i, j)     d_lA[(id)], ((j)*ldda + (i))
 #define dlA_offset(i, j)  ((j)*ldda + (i))
@@ -22,21 +25,19 @@
 #define dlPT_offset(i, j, k) ((k)*nb*lddp + (j)*nb   + (i))
 #define dlP_offset(i, j ,k)  ((k)*nb*lddp + (j)*lddp + (i))
 
-extern "C" magma_int_t
-magma_zpotrf2_msub(
-    magma_int_t num_subs, magma_int_t num_gpus, magma_uplo_t uplo, magma_int_t m, magma_int_t n, 
-    magma_int_t off_i, magma_int_t off_j, magma_int_t nb,
-    magmaDoubleComplex_ptr *d_lA, size_t d_lA_offset, magma_int_t ldda, 
-    magmaDoubleComplex_ptr *d_lP, magma_int_t lddp, 
-    magmaDoubleComplex *a, magma_int_t lda, magma_int_t h,
-    magma_queue_t *queues,
-    magma_int_t *info )
+extern "C" magma_err_t
+magma_zpotrf2_msub(int num_subs, int num_gpus, magma_uplo_t uplo, magma_int_t m, magma_int_t n, 
+                   magma_int_t off_i, magma_int_t off_j, magma_int_t nb,
+                   magmaDoubleComplex_ptr *d_lA, size_t d_lA_offset, magma_int_t ldda, 
+                   magmaDoubleComplex_ptr *d_lP, magma_int_t lddp, 
+                   magmaDoubleComplex *a, magma_int_t lda, magma_int_t h,
+                   magma_int_t *info, magma_queue_t *queues )
 {
-/*  -- clMAGMA (version 1.3.0) --
+/*  -- clMAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
     Purpose   
     =======   
@@ -72,9 +73,9 @@ magma_zpotrf2_msub(
             factorization dA = U**H * U or dA = L * L**H.   
 
     LDDA     (input) INTEGER   
-            The leading dimension of the array dA.  LDDA >= max(1,N).
+            The leading dimension of the array dA.  LDDA >= std::max(1,N).
             To benefit from coalescent memory accesses LDDA must be
-            divisible by 16.
+            dividable by 16.
 
     INFO    (output) INTEGER   
             = 0:  successful exit   
@@ -83,6 +84,7 @@ magma_zpotrf2_msub(
                   positive definite, and the factorization could not be   
                   completed.   
     =====================================================================   */
+
 
     int tot_subs = num_subs*num_gpus;
     magma_int_t     j, jb, nb0, nb2, dd, d, id, j_local, j_local2;
@@ -102,9 +104,9 @@ magma_zpotrf2_msub(
         *info = -1;
     } else if (n < 0) {
         *info = -2;
-    } else if ((uplo != MagmaUpper) && tot_subs*ldda < max(1,n)) {
+    } else if ((uplo != MagmaUpper) && tot_subs*ldda < std::max(1,n)) {
         *info = -4;
-    } else if ((uplo == MagmaUpper) && ldda < max(1,m)) {
+    } else if ((uplo == MagmaUpper) && ldda < std::max(1,m)) {
         *info = -4;
     }
     if (*info != 0) {
@@ -140,7 +142,7 @@ magma_zpotrf2_msub(
             id  = (j/nb)%tot_subs;
             /* Set the local index where the current panel is */
             j_local = j/(nb*tot_subs);
-            jb = min(nb, (m-j));
+            jb = std::min(nb, (m-j));
             if (j > 0) {
                 // Wait for the column on CPU
                 magma_queue_sync(queues[2*(id%num_gpus)]); 
@@ -149,7 +151,7 @@ magma_zpotrf2_msub(
                 for (dd=0; dd<num_gpus; dd++) {
                     if (d != id%num_gpus) {
                         magma_zsetmatrix_async( j, jb, 
-                                                Aup(0,j),                lda, 
+                                                Aup_off(0,j),            lda, 
                                                 dlP(d,jb,0,id%num_gpus), lddp, 
                                                 queues[2*d], 
                                                 trace_gpu_event(d, 0, "set", "set-col") );
@@ -167,7 +169,7 @@ magma_zpotrf2_msub(
             /* Send the diagonal to cpu */
             magma_zgetmatrix_async( jb, jb, 
                                     dlA(id, j, nb*j_local), ldda,
-                                    Aup(j,j),               lda,
+                                    Aup_off(j,j),           lda,
                                     queues[2*(id%num_gpus)], 
                                     trace_gpu_event(id%num_gpus, 0, "get", "get-diag") );
             if (j > 0) {
@@ -225,7 +227,7 @@ magma_zpotrf2_msub(
                         ldpanel = lddp;
                     }
                     magma_zsetmatrix_async( jb, jb, 
-                                            Aup(j,j),                lda,
+                                            Aup_off(j,j),            lda,
                                             dlpanel, dlpanel_offset, ldpanel, 
                                             queues[2*d], 
                                             trace_gpu_event(d, 0, "set", "set-diag"));
@@ -233,7 +235,7 @@ magma_zpotrf2_msub(
                 }
             } else {
                 magma_zsetmatrix_async( jb, jb, 
-                                        Aup(j,j),               lda, 
+                                        Aup_off(j,j),           lda, 
                                         dlA(id, j, nb*j_local), ldda,
                                         queues[2*(id%num_gpus)], 
                                         trace_gpu_event(id%num_gpus, 0, "set", "set-diag") );
@@ -256,7 +258,7 @@ magma_zpotrf2_msub(
                         ldpanel = lddp;
                     }
                     nb2 = n_local[d]-nb*j_local2;
-                    nb0 = min(nb, nb2);
+                    nb0 = std::min(nb, nb2);
                     if (dd < num_gpus) magma_queue_sync( queues[2*(d%num_gpus)] ); // wait for the diagonal
                     if (j+jb < m && d == (j/nb+1)%tot_subs) {
                         /* owns the next column, look-ahead the column */
@@ -270,7 +272,7 @@ magma_zpotrf2_msub(
                         magma_queue_sync(queues[2*(d%num_gpus)+1]);  // wait for lookahead
                         magma_zgetmatrix_async( (j+jb), nb0, 
                                                 dlA(d, 0, nb*j_local2), ldda, 
-                                                Aup(0,j+jb),            lda,
+                                                Aup_off(0,j+jb),        lda,
                                                 queues[2*(d%num_gpus)], 
                                                 trace_gpu_event(d%num_gpus, 0, "get", "get-col") );
                         /* update the remaining blocks */
@@ -304,7 +306,7 @@ magma_zpotrf2_msub(
             id  = (j/nb)%tot_subs;
             /* Set the local index where the current panel is */
             j_local = j/(nb*tot_subs);
-            jb = min(nb, (n-j));
+            jb = std::min(nb, (n-j));
             if (j > 0) {
                 if (num_gpus > 1) {
                     // Wait for the row on CPU to broadcast
@@ -316,7 +318,7 @@ magma_zpotrf2_msub(
                     if (d != id%num_gpus) {
                         /* send it to GPU-d */
                         magma_zsetmatrix_async( jb, j,
-                                                Alo(j,0),                 lda,
+                                                Alo_off(j,0),             lda,
                                                 dlPT(d,0,jb,id%num_gpus), nb, 
                                                 queues[2*d], 
                                                 trace_gpu_event(d, 0, "set", "set-row") );
@@ -334,7 +336,7 @@ magma_zpotrf2_msub(
             /* send the diagonal to cpu */
             magma_zgetmatrix_async( jb, jb,
                                     dlA(id, nb*j_local, j), ldda,
-                                    Alo(j,j),               lda, 
+                                    Alo_off(j,j),           lda, 
                                     queues[2*(id%num_gpus)], 
                                     trace_gpu_event(id%num_gpus, 0, "get", "get") );
             /* update the offdiagonal blocks */
@@ -395,15 +397,15 @@ magma_zpotrf2_msub(
                         ldpanel = nb;
                     }
                     magma_zsetmatrix_async( jb, jb,
-                                            Alo(j,j), lda,
-                                            dlpanel,  dlpanel_offset, ldpanel, 
+                                            Alo_off(j,j), lda,
+                                            dlpanel,      dlpanel_offset, ldpanel, 
                                             queues[2*d], 
                                             trace_gpu_event(d, 0, "set", "set-diag") );
                     d = (d+1)%num_gpus;
                 }
             } else {
                 magma_zsetmatrix_async( jb, jb,
-                                        Alo(j,j),               lda,
+                                        Alo_off(j,j),           lda,
                                         dlA(id, nb*j_local, j), ldda, 
                                         queues[2*(id%num_gpus)],
                                         trace_gpu_event(id%num_gpus, 0, "set", "set-diag") );
@@ -426,7 +428,7 @@ magma_zpotrf2_msub(
                         ldpanel = nb;
                     }
                     nb2 = n_local[d] - j_local2*nb;
-                    nb0 = min(nb, nb2 );
+                    nb0 = std::min(nb, nb2 );
                     // wait for the diagonal
                     if (dd < num_gpus) magma_queue_sync(queues[2*(d%num_gpus)]);
                     if (j+jb < n && d == (j/nb+1)%tot_subs) {
@@ -441,7 +443,7 @@ magma_zpotrf2_msub(
                         magma_queue_sync( queues[2*(d%num_gpus)+1] ); // wait for lookahead
                         magma_zgetmatrix_async( nb0, j+jb,
                                                 dlA(d, nb*j_local2, 0), ldda,
-                                                Alo(j+jb,0),            lda, 
+                                                Alo_off(j+jb,0),        lda, 
                                                 queues[2*(d%num_gpus)], 
                                                 trace_gpu_event(d%num_gpus, 0, "get", "get") );
                         /* update the remaining blocks */

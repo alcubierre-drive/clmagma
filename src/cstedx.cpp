@@ -1,40 +1,40 @@
 /*
-   -- clMAGMA (version 1.3.0) --
+   -- clMAGMA (version 1.1.0) --
       Univ. of Tennessee, Knoxville
       Univ. of California, Berkeley
       Univ. of Colorado, Denver
-      @date November 2014
+      @date January 2014
 
       @author Raffaele Solca
  
-      @generated from zstedx.cpp normal z -> c, Sat Nov 15 00:21:37 2014
+      @generated from zstedx.cpp normal z -> c, Fri Jan 10 15:51:18 2014
        
 */
+
+#include <cstdio>
 #include "common_magma.h"
 
-extern "C" {
+extern "C"{
     magma_int_t get_cstedx_smlsize()
     {
         return 25;
     }
-}  // end extern "C"
+}
 
 extern "C" magma_int_t
-magma_cstedx(
-    magma_range_t range, magma_int_t n, float vl, float vu,
-    magma_int_t il, magma_int_t iu, float* d, float* e,
-    magmaFloatComplex* z, magma_int_t ldz,
-    float* rwork, magma_int_t lrwork,
-    magma_int_t* iwork, magma_int_t liwork,
-    magmaFloat_ptr dwork,
-    magma_queue_t queue,
-    magma_int_t* info)
+magma_cstedx(magma_vec_t range, magma_int_t n, float vl, float vu,
+             magma_int_t il, magma_int_t iu, float* d, float* e,
+             magmaFloatComplex* z, magma_int_t ldz,
+             float* rwork, magma_int_t lrwork,
+             magma_int_t* iwork, magma_int_t liwork,
+             magmaFloat_ptr dwork, magma_int_t* info, magma_queue_t queue)
 {
-/*  -- MAGMA (version 1.3.0) --
+/*
+    -- MAGMA (version 1.1.0) --
     Univ. of Tennessee, Knoxville
     Univ. of California, Berkeley
     Univ. of Colorado, Denver
-    @date November 2014
+    @date January 2014
 
        .. Scalar Arguments ..
       CHARACTER          RANGE
@@ -49,6 +49,7 @@ magma_cstedx(
 
     Purpose
     =======
+
     CSTEDX computes some eigenvalues and eigenvectors of a
     symmetric tridiagonal matrix using the divide and conquer method.
 
@@ -61,6 +62,7 @@ magma_cstedx(
 
     Arguments
     =========
+
     RANGE   (input) CHARACTER*1
             = 'A': all eigenvalues will be found.
             = 'V': all eigenvalues in the half-open interval (VL,VU]
@@ -96,17 +98,17 @@ magma_cstedx(
             of the symmetric tridiagonal matrix.
 
     LDZ     (input) INTEGER
-            The leading dimension of the array Z. LDZ >= max(1,N).
+            The leading dimension of the array Z. LDZ >= std::max(1,N).
 
     RWORK   (workspace/output) REAL array, dimension (LRWORK)
             On exit, if INFO = 0, RWORK(1) returns the optimal LRWORK.
 
     LRWORK  (input) INTEGER
             The dimension of the array RWORK.
-            LRWORK >= 1 + 4*N + 2*N**2.
+            LRWORK must be at least 1 + 4*N + 2*N**2.
             Note that if N is less than or
             equal to the minimum divide size, usually 25, then LRWORK
-            need only be max(1,2*(N-1)).
+            need only be std::max(1,2*(N-1)).
 
             If LRWORK = -1, then a workspace query is assumed; the
             routine only calculates the optimal sizes of the WORK, RWORK
@@ -119,7 +121,7 @@ magma_cstedx(
 
     LIWORK  (input) INTEGER
             The dimension of the array IWORK.
-            LIWORK >= 3 + 5*N .
+            LIWORK must be at least 3 + 5*N .
             Note that if N is less than or
             equal to the minimum divide size, usually 25, then LIWORK
             need only be 1.
@@ -141,19 +143,22 @@ magma_cstedx(
 
     Further Details
     ===============
+
     Based on contributions by
        Jeff Rutter, Computer Science Division, University of California
        at Berkeley, USA
 
-    ===================================================================== */
+    =====================================================================
+*/
+    magma_vec_t range_ = range;
 
     magma_int_t alleig, indeig, valeig, lquery;
     magma_int_t i, j, smlsiz;
     magma_int_t liwmin, lrwmin;
 
-    alleig = (range == MagmaRangeAll);
-    valeig = (range == MagmaRangeV);
-    indeig = (range == MagmaRangeI);
+    alleig = lapackf77_lsame(lapack_const(range_), "A");
+    valeig = lapackf77_lsame(lapack_const(range_), "V");
+    indeig = lapackf77_lsame(lapack_const(range_), "I");
     lquery = lrwork == -1 || liwork == -1;
 
     *info = 0;
@@ -162,7 +167,7 @@ magma_cstedx(
         *info = -1;
     } else if (n < 0) {
         *info = -2;
-    } else if (ldz < max(1,n)) {
+    } else if (ldz < std::max(1,n)) {
         *info = -10;
     } else {
         if (valeig) {
@@ -170,9 +175,9 @@ magma_cstedx(
                 *info = -4;
             }
         } else if (indeig) {
-            if (il < 1 || il > max(1,n)) {
+            if (il < 1 || il > std::max(1,n)) {
                 *info = -5;
-            } else if (iu < min(n,il) || iu > n) {
+            } else if (iu < std::min(n,il) || iu > n) {
                 *info = -6;
             }
         }
@@ -212,7 +217,7 @@ magma_cstedx(
     if(n==0)
         return *info;
     if(n==1){
-        *z = MAGMA_C_ONE;
+        MAGMA_C_SET2REAL(*z,1.);
         return *info;
     }
 
@@ -227,11 +232,11 @@ magma_cstedx(
     } else {
         // We simply call SSTEDX instead.
         magma_sstedx(range, n, vl, vu, il, iu, d, e, rwork, n,
-                     rwork+n*n, lrwork-n*n, iwork, liwork, dwork, queue, info);
+                     rwork+n*n, lrwork-n*n, iwork, liwork, dwork, info, queue);
 
         for(j=0; j<n; ++j)
             for(i=0; i<n; ++i){
-                *(z+i+ldz*j) = MAGMA_C_MAKE( *(rwork+i+n*j), 0 );
+                MAGMA_C_SET2REAL(*(z+i+ldz*j), *(rwork+i+n*j));
             }
     }
 

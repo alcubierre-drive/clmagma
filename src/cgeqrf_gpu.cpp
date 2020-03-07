@@ -1,26 +1,28 @@
 /*
-    -- clMAGMA (version 1.3.0) --
+    -- clMAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
-       @generated from zgeqrf_gpu.cpp normal z -> c, Sat Nov 15 00:21:37 2014
+       @generated from zgeqrf_gpu.cpp normal z -> c, Fri Jan 10 15:51:18 2014
 */
+
+#include <cstdio>
+
+#include <cstdio>
 #include "common_magma.h"
 
 /* ////////////////////////////////////////////////////////////////////////////
    -- Auxiliary function: 'a' is pointer to the current panel holding the
       Householder vectors for the QR factorization of the panel. This routine
       puts ones on the diagonal and zeros in the upper triangular part of 'a'.
-      The upper triangular values are stored in work.
-      
-      Then, the inverse is calculated in place in work, so as a final result,
-      work holds the inverse of the upper triangular diagonal block.
+      The upper triangular values are stored in work. Than the inverse is
+      calculated in place in work, so as final result work holds the inverse
+      of the upper triangular diagonal block.
  */
-void csplit_diag_block(magma_int_t ib, magmaFloatComplex *a, magma_int_t lda, magmaFloatComplex *work)
-{
-    magma_int_t i, j, info;
+void csplit_diag_block(int ib, magmaFloatComplex *a, int lda, magmaFloatComplex *work){
+    int i, j, info;
     magmaFloatComplex *cola, *colw;
     magmaFloatComplex c_zero = MAGMA_C_ZERO;
     magmaFloatComplex c_one  = MAGMA_C_ONE;
@@ -38,31 +40,25 @@ void csplit_diag_block(magma_int_t ib, magmaFloatComplex *a, magma_int_t lda, ma
     lapackf77_ctrtri( MagmaUpperStr, MagmaNonUnitStr, &ib, work, &ib, &info);
 }
 
-extern "C" magma_int_t
-magma_cgeqrf_gpu(
-    magma_int_t m, magma_int_t n,
-    magmaFloatComplex_ptr dA, size_t dA_offset,  magma_int_t ldda,
-    magmaFloatComplex *tau, magmaFloatComplex_ptr dT, size_t dT_offset,
-    magma_queue_t queue,
-    magma_int_t *info)
+extern "C" magma_err_t
+magma_cgeqrf_gpu( magma_int_t m, magma_int_t n,
+                  magmaFloatComplex_ptr dA, size_t dA_offset,  magma_int_t ldda,
+                  magmaFloatComplex *tau, magmaFloatComplex_ptr dT, size_t dT_offset,
+                  magma_int_t *info, magma_queue_t queue)
 {
-/*  -- clMAGMA (version 1.3.0) --
+/*  -- clMAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
     Purpose
     =======
-    CGEQRF computes a QR factorization of a complex M-by-N matrix A:
-    A = Q * R.
-    
-    This version stores the triangular dT matrices used in
-    the block QR factorization so that they can be applied directly (i.e.,
+    CGEQRF computes a QR factorization of a COMPLEX M-by-N matrix A:
+    A = Q * R. This version stores the triangular matrices used in
+    the factorization so that they can be applied directly (i.e.,
     without being recomputed) later. As a result, the application
-    of Q is much faster. Also, the upper triangular matrices for V have 0s
-    in them. The corresponding parts of the upper triangular R are inverted
-    and stored separately in dT.
+    of Q is much faster.
 
     Arguments
     =========
@@ -72,21 +68,21 @@ magma_cgeqrf_gpu(
     N       (input) INTEGER
             The number of columns of the matrix A.  N >= 0.
 
-    dA      (input/output) COMPLEX array on the GPU, dimension (LDDA,N)
+    A       (input/output) COMPLEX array on the GPU, dimension (LDDA,N)
             On entry, the M-by-N matrix A.
             On exit, the elements on and above the diagonal of the array
-            contain the min(M,N)-by-N upper trapezoidal matrix R (R is
+            contain the std::min(M,N)-by-N upper trapezoidal matrix R (R is
             upper triangular if m >= n); the elements below the diagonal,
             with the array TAU, represent the orthogonal matrix Q as a
-            product of min(m,n) elementary reflectors (see Further
+            product of std::min(m,n) elementary reflectors (see Further
             Details).
 
     LDDA     (input) INTEGER
-            The leading dimension of the array dA.  LDDA >= max(1,M).
+            The leading dimension of the array A.  LDDA >= std::max(1,M).
             To benefit from coalescent memory accesses LDDA must be
-            divisible by 16.
+            dividable by 16.
 
-    TAU     (output) COMPLEX array, dimension (min(M,N))
+    TAU     (output) COMPLEX array, dimension (std::min(M,N))
             The scalar factors of the elementary reflectors (see Further
             Details).
 
@@ -106,7 +102,7 @@ magma_cgeqrf_gpu(
     ===============
     The matrix Q is represented as a product of elementary reflectors
 
-       Q = H(1) H(2) . . . H(k), where k = min(m,n).
+       Q = H(1) H(2) . . . H(k), where k = std::min(m,n).
 
     Each H(i) has the form
 
@@ -135,7 +131,7 @@ magma_cgeqrf_gpu(
         *info = -1;
     } else if (n < 0) {
         *info = -2;
-    } else if (ldda < max(1,m)) {
+    } else if (ldda < std::max(1,m)) {
         *info = -4;
     }
     if (*info != 0) {
@@ -143,7 +139,7 @@ magma_cgeqrf_gpu(
         return *info;
     }
 
-    k = minmn = min(m,n);
+    k = minmn = std::min(m,n);
     if (k == 0)
         return *info;
 
@@ -169,11 +165,11 @@ magma_cgeqrf_gpu(
         /* Use blocked code initially */
         old_i = 0; old_ib = nb;
         for (i = 0; i < k-nb; i += nb) {
-            ib = min(k-i, nb);
+            ib = std::min(k-i, nb);
             rows = m -i;
             magma_cgetmatrix_async( rows, ib,
                                     a_ref(i,i),  ldda,
-                                    work_ref(i), ldwork, queue, &event[1] );
+                                    work_ref(i), 0, ldwork, queue, &event[1] );
             if (i>0){
                 /* Apply H' to A(i:m,i+2*ib:n) from the left */
                 cols = n-old_i-2*old_ib;
@@ -184,7 +180,7 @@ magma_cgeqrf_gpu(
                 
                 /* store the diagonal */
                 magma_csetmatrix_async( old_ib, old_ib,
-                                        ut, old_ib,
+                                        ut, 0, old_ib,
                                         d_ref(old_i), old_ib, queue, &event[0] );
             }
             
@@ -197,14 +193,14 @@ magma_cgeqrf_gpu(
                               work_ref(i), &ldwork, tau+i, hwork, &ib);
 
             /* Put 0s in the upper triangular part of a panel (and 1s on the
-               diagonal); copy the upper triangular in ut and invert it. */
+               diagonal); copy the upper triangular in ut and invert it     */
             magma_event_sync(event[0]);
             csplit_diag_block(ib, work_ref(i), ldwork, ut);
-            magma_csetmatrix( rows, ib, work_ref(i), ldwork, a_ref(i,i), ldda, queue);
+            magma_csetmatrix( rows, ib, work_ref(i), 0, ldwork, a_ref(i,i), ldda, queue);
             
             if (i + ib < n) {
                 /* Send the triangular factor T to the GPU */
-                magma_csetmatrix( ib, ib, hwork, ib, t_ref(i), nb, queue );
+                magma_csetmatrix( ib, ib, hwork, 0, ib, t_ref(i), nb, queue );
 
                 if (i+nb < k-nb){
                     /* Apply H' to A(i:m,i+ib:i+2*ib) from the left */
@@ -220,7 +216,7 @@ magma_cgeqrf_gpu(
                                       a_ref(i, i   ), ldda, t_ref(i),  nb,
                                       a_ref(i, i+ib), ldda, dd_ref(0), lddwork, queue);
                     /* Fix the diagonal block */
-                    magma_csetmatrix( ib, ib, ut, ib, d_ref(i), ib , queue);
+                    magma_csetmatrix( ib, ib, ut, 0, ib, d_ref(i), ib , queue);
                 }
                 old_i  = i;
                 old_ib = ib;
@@ -234,16 +230,16 @@ magma_cgeqrf_gpu(
     if (i < k) {
         ib   = n-i;
         rows = m-i;
-        magma_cgetmatrix( rows, ib, a_ref(i, i), ldda, work, rows, queue );
+        magma_cgetmatrix( rows, ib, a_ref(i, i), ldda, work, 0, rows, queue );
         lhwork = lwork - rows*ib;
         lapackf77_cgeqrf(&rows, &ib, work, &rows, tau+i, work+ib*rows, &lhwork, info);
         
-        magma_csetmatrix( rows, ib, work, rows, a_ref(i, i), ldda, queue );
+        magma_csetmatrix( rows, ib, work, 0, rows, a_ref(i, i), ldda, queue );
     }
 
     magma_free_cpu( work );
     return *info;
-} /* magma_cgeqrf_gpu */
+} /* magma_cgeqrf */
 
 #undef a_ref
 #undef t_ref

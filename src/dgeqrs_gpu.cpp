@@ -1,30 +1,30 @@
 /*
-    -- clMAGMA (version 1.3.0) --
+    -- clMAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
        
-       @generated from zgeqrs_gpu.cpp normal z -> d, Sat Nov 15 00:21:37 2014
-
+       @date January 2014
+       
+       @generated from zgeqrs_gpu.cpp normal z -> d, Fri Jan 10 15:51:18 2014
 */
+
+#include <cstdio>
 #include "common_magma.h"
 
-extern "C" magma_int_t
-magma_dgeqrs_gpu(
-    magma_int_t m, magma_int_t n, magma_int_t nrhs,
-    magmaDouble_ptr dA, size_t dA_offset, magma_int_t ldda,
-    double *tau,   magmaDouble_ptr dT, size_t dT_offset,
-    magmaDouble_ptr dB, size_t dB_offset, magma_int_t lddb,
-    double *hwork, magma_int_t lwork,
-    magma_queue_t queue,
-    magma_int_t *info)
+extern "C" magma_err_t
+magma_dgeqrs_gpu(magma_int_t m, magma_int_t n, magma_int_t nrhs,
+                 magmaDouble_ptr dA, size_t dA_offset, magma_int_t ldda,
+                 double *tau,   magmaDouble_ptr dT, size_t dT_offset,
+                 magmaDouble_ptr dB, size_t dB_offset, magma_int_t lddb,
+                 double *hwork, magma_int_t lwork,
+                 magma_int_t *info, magma_queue_t queue)
 {
 /*  -- clMagma (version 0.1) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
     Purpose
     =======
@@ -75,9 +75,9 @@ magma_dgeqrs_gpu(
             On exit, if INFO = 0, WORK(1) returns the optimal LWORK.
 
     LWORK   (input) INTEGER
-            The dimension of the array WORK,
-            LWORK >= (M - N + NB)*(NRHS + NB) + NRHS*NB,
-            where NB is the blocksize given by magma_get_dgeqrf_nb( M ).
+            The dimension of the array WORK, LWORK >= std::max(1,NRHS).
+            For optimum performance LWORK >= (M-N+NB)*(NRHS + 2*NB), where
+            NB is the blocksize given by magma_get_dgeqrf_nb( M ).
 
             If LWORK = -1, then a workspace query is assumed; the routine
             only calculates the optimal size of the HWORK array, returns
@@ -99,8 +99,8 @@ magma_dgeqrs_gpu(
     magma_int_t ione = 1;
 
     magma_int_t nb     = magma_get_dgeqrf_nb(m);
-    magma_int_t lwkopt = (m - n + nb)*(nrhs + nb) + nrhs*nb;
-    int lquery = (lwork == -1);
+    magma_int_t lwkopt = (m-n+nb)*(nrhs+2*nb);
+    long int lquery = (lwork == -1);
 
     hwork[0] = MAGMA_D_MAKE( (double)lwkopt, 0. );
 
@@ -111,9 +111,9 @@ magma_dgeqrs_gpu(
         *info = -2;
     else if (nrhs < 0)
         *info = -3;
-    else if (ldda < max(1,m))
+    else if (ldda < std::max(1,m))
         *info = -5;
-    else if (lddb < max(1,m))
+    else if (lddb < std::max(1,m))
         *info = -8;
     else if (lwork < lwkopt && ! lquery)
         *info = -10;
@@ -125,17 +125,17 @@ magma_dgeqrs_gpu(
     else if (lquery)
         return *info;
 
-    k = min(m,n);
+    k = std::min(m,n);
     if (k == 0) {
         hwork[0] = c_one;
         return *info;
     }
 
     /* B := Q' * B */
-    magma_dormqr_gpu( MagmaLeft, MagmaConjTrans,
+    magma_dormqr_gpu( MagmaLeft, MagmaTrans,
                       m, nrhs, n,
                       a_ref(0,0), ldda, tau,
-                      dB, dB_offset, lddb, hwork, lwork, dT, dT_offset, nb, queue, info );
+                      dB, dB_offset, lddb, hwork, lwork, dT, dT_offset, nb, info, queue );
     if ( *info != 0 ) {
         return *info;
     }
@@ -145,14 +145,16 @@ magma_dgeqrs_gpu(
 
     int ldtwork;
     size_t dwork_offset = 0;
-    if (nb < k) {
+    if (nb < k)
+      {
         dwork = dT;
         dwork_offset = dT_offset+2*lddwork*nb;
-    }
-    else {
+      }
+    else
+      {
         ldtwork = ( 2*k + ((n+31)/32)*32 )*nb;
         magma_dmalloc( &dwork, ldtwork );
-    }
+      }
     // To do: Why did we have this line originally; seems to be a bug (Stan)?
     //dwork = dT;
 
@@ -160,10 +162,6 @@ magma_dgeqrs_gpu(
     ib   = n-i;
     rows = m-i;
 
-    // TODO: this assumes that, on exit from magma_dormqr_gpu, hwork contains
-    // the last block of A and B (i.e., C in dormqr). This should be fixed.
-    // Seems this data should already be on the GPU, so could switch to
-    // magma_dtrsm and drop the dsetmatrix.
     if ( nrhs == 1 ) {
         blasf77_dtrsv( MagmaUpperStr, MagmaNoTransStr, MagmaNonUnitStr,
                        &ib, hwork,         &rows,
@@ -176,7 +174,7 @@ magma_dgeqrs_gpu(
     }
       
     // update the solution vector
-    magma_dsetmatrix( ib, nrhs, hwork+rows*ib, rows, dwork, dwork_offset+i, lddwork, queue );
+    magma_dsetmatrix( ib, nrhs, hwork+rows*ib, 0, rows, dwork, dwork_offset+i, lddwork, queue );
 
     // update c
     if (nrhs == 1)
@@ -194,7 +192,7 @@ magma_dgeqrs_gpu(
     int start = i-nb;
     if (nb < k) {
         for (i = start; i >=0; i -= nb) {
-            ib = min(k-i, nb);
+            ib = std::min(k-i, nb);
             rows = m -i;
 
             if (i + ib < n) {
@@ -207,8 +205,7 @@ magma_dgeqrs_gpu(
                                  c_neg_one, a_ref(0, i), ldda,
                                  dwork, dwork_offset+i,   1,
                                  c_one,     dB, dB_offset, 1, queue );
-                }
-                else {
+                } else {
                     magma_dgemm( MagmaNoTrans, MagmaNoTrans,
                                  ib, nrhs, ib,
                                  c_one,  d_ref(i), ib,

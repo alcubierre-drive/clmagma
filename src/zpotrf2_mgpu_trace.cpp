@@ -1,13 +1,14 @@
 /*
-    -- clMAGMA (version 1.3.0) --
+    -- clMAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
        @precisions normal z -> s d c
 
 */
+#include <cstdio>
 #include "common_magma.h"
 #include "trace.h"
 
@@ -27,21 +28,19 @@
 #define dlPT_offset(i, j, k) ((k)*nb*lddp + (j)*nb   + (i))
 //#define dlPT[id] d_lP[id]
 
-extern "C" magma_int_t
-magma_zpotrf2_mgpu(
-    int num_gpus, magma_uplo_t uplo, magma_int_t m, magma_int_t n, 
-    magma_int_t off_i, magma_int_t off_j, magma_int_t nb,
-    magmaDoubleComplex_ptr *d_lA, size_t d_lA_offset, magma_int_t ldda, 
-    magmaDoubleComplex_ptr *d_lP,  magma_int_t lddp, 
-    magmaDoubleComplex *a,      magma_int_t lda,   magma_int_t h,
-    magma_queue_t *queues,
-    magma_int_t *info )
+extern "C" magma_err_t
+magma_zpotrf2_mgpu(int num_gpus, magma_uplo_t uplo, magma_int_t m, magma_int_t n, 
+                   magma_int_t off_i, magma_int_t off_j, magma_int_t nb,
+                   magmaDoubleComplex_ptr *d_lA, size_t d_lA_offset, magma_int_t ldda, 
+                   magmaDoubleComplex_ptr *d_lP,  magma_int_t lddp, 
+                   magmaDoubleComplex *a,      magma_int_t lda,   magma_int_t h,
+                   magma_int_t *info, magma_queue_t *queues )
 {
-/*  -- clMAGMA (version 1.3.0) --
+/*  -- clMAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
     Purpose   
     =======   
@@ -77,9 +76,9 @@ magma_zpotrf2_mgpu(
             factorization dA = U**H * U or dA = L * L**H.   
 
     LDDA     (input) INTEGER   
-            The leading dimension of the array dA.  LDDA >= max(1,N).
+            The leading dimension of the array dA.  LDDA >= std::max(1,N).
             To benefit from coalescent memory accesses LDDA must be
-            divisible by 16.
+            dividable by 16.
 
     INFO    (output) INTEGER   
             = 0:  successful exit   
@@ -88,6 +87,7 @@ magma_zpotrf2_mgpu(
                   positive definite, and the factorization could not be   
                   completed.   
     =====================================================================   */
+
 
     magma_int_t     j, jb, nb0, nb2, dd, d, id, j_local, j_local2, buf;
     magmaDoubleComplex c_one     = MAGMA_Z_ONE;
@@ -104,9 +104,9 @@ magma_zpotrf2_mgpu(
         *info = -1;
     } else if (n < 0) {
         *info = -2;
-    } else if ((uplo != MagmaUpper) && num_gpus*ldda < max(1,n)) {
+    } else if ((uplo != MagmaUpper) && num_gpus*ldda < std::max(1,n)) {
         *info = -4;
-    } else if ((uplo == MagmaUpper) && ldda < max(1,m)) {
+    } else if ((uplo == MagmaUpper) && ldda < std::max(1,m)) {
         *info = -4;
     }
     if (*info != 0) {
@@ -156,7 +156,7 @@ magma_zpotrf2_mgpu(
 
               /* Set the local index where the current panel is */
               j_local = j/(nb*num_gpus);
-              jb = min(nb, (n-j));
+              jb = std::min(nb, (n-j));
 
               if( j > 0 ) {
                   /* needed on pluto... */
@@ -314,7 +314,7 @@ magma_zpotrf2_mgpu(
                           ldpanel = nb;
                       }
                       nb2 = n_local[d] - j_local2*nb;
-                      nb0 = min(nb, nb2 );
+                      nb0 = std::min(nb, nb2 );
                         
                       magma_queue_sync(queues[d*2]);
                       // wait for the diagonal

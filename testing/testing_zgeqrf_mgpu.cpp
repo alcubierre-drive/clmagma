@@ -1,19 +1,19 @@
 /*
-    -- clMAGMA (version 1.3.0) --
+    -- clMAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
        @precisions normal z -> s d c
 
 */
 
 // includes, system
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <math.h>
+#include <cstdlib>
+#include <cstdio>
+#include <cstring>
+#include <cmath>
 
 // includes, project
 #include "flops.h"
@@ -85,7 +85,7 @@ int main( int argc, char** argv)
     
     ldda   = ((M+31)/32)*32;
     n2     = M * N;
-    min_mn = min(M, N);
+    min_mn = std::min(M, N);
 
     magma_int_t nb  = magma_get_zgeqrf_nb(M);
 
@@ -98,23 +98,23 @@ int main( int argc, char** argv)
     /* Initialize */
     magma_queue_t  queues[MagmaMaxGPUs * 2];
     magma_device_t devices[ MagmaMaxGPUs ];
-    magma_int_t num = 0;
-    magma_int_t err;
+    int num = 0;
+    magma_err_t err;
     magma_init();
-    err = magma_getdevices( devices, MagmaMaxGPUs, &num );
+    err = magma_get_devices( devices, MagmaMaxGPUs, &num );
     if ( err != 0 || num < 1 ) {
-        fprintf( stderr, "magma_getdevices failed: %d\n", (int) err );
+        fprintf( stderr, "magma_get_devices failed: %d\n", err );
         exit(-1);
     }
     for(i=0;i<num_gpus;i++){
         err = magma_queue_create( devices[i], &queues[2*i] );
         if ( err != 0 ) {
-            fprintf( stderr, "magma_queue_create failed: %d\n", (int) err );
+            fprintf( stderr, "magma_queue_create failed: %d\n", err );
             exit(-1);
         }
         err = magma_queue_create( devices[i], &queues[2*i+1] );
         if ( err != 0 ) {
-            fprintf( stderr, "magma_queue_create failed: %d\n", (int) err );
+            fprintf( stderr, "magma_queue_create failed: %d\n", err );
             exit(-1);
         }
     }
@@ -147,7 +147,7 @@ int main( int argc, char** argv)
         if (argc == 1){
             M = N = size[i];
         }
-        min_mn= min(M, N);
+        min_mn= std::min(M, N);
         lda   = M;
         n2    = lda*N;
         ldda  = ((M+31)/32)*32;
@@ -178,12 +178,12 @@ int main( int argc, char** argv)
         }
         
         // warm-up
-        magma_zsetmatrix_1D_col_bcyclic(M, N, h_R, lda, d_lA, ldda, num_gpus, nb, trans_queues);
-        magma_zgeqrf2_mgpu( num_gpus, M, N, d_lA, ldda, tau, queues, &info);
+        magmablas_zsetmatrix_1D_bcyclic(M, N, h_R, lda, d_lA, ldda, num_gpus, nb, trans_queues);
+        magma_zgeqrf2_mgpu( num_gpus, M, N, d_lA, ldda, tau, &info, queues);
 
-        magma_zsetmatrix_1D_col_bcyclic(M, N, h_R, lda, d_lA, ldda, num_gpus, nb, trans_queues);
+        magmablas_zsetmatrix_1D_bcyclic(M, N, h_R, lda, d_lA, ldda, num_gpus, nb, trans_queues);
         gpu_time = magma_wtime();
-        magma_zgeqrf2_mgpu( num_gpus, M, N, d_lA, ldda, tau, queues, &info);
+        magma_zgeqrf2_mgpu( num_gpus, M, N, d_lA, ldda, tau, &info, queues);
         gpu_time = magma_wtime() - gpu_time;
 
         if (info < 0)
@@ -194,7 +194,7 @@ int main( int argc, char** argv)
         /* =====================================================================
            Check the result compared to LAPACK
            =================================================================== */
-        magma_zgetmatrix_1D_col_bcyclic(M, N, d_lA, ldda, h_R, lda, num_gpus, nb, trans_queues);
+        magmablas_zgetmatrix_1D_bcyclic(M, N, d_lA, ldda, h_R, lda, num_gpus, nb, trans_queues);
         
         matnorm = lapackf77_zlange("f", &M, &N, h_A, &M, work);
         blasf77_zaxpy(&n2, &c_neg_one, h_A, &ione, h_R, &ione);

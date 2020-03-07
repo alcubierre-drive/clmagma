@@ -1,9 +1,9 @@
 #//////////////////////////////////////////////////////////////////////////////
-#   -- clMAGMA (version 1.3.0) --
+#   -- clMAGMA (version 1.1.0) --
 #      Univ. of Tennessee, Knoxville
 #      Univ. of California, Berkeley
 #      Univ. of Colorado, Denver
-#      @date November 2014
+#      @date January 2014
 #//////////////////////////////////////////////////////////////////////////////
 
 DIR = src
@@ -17,38 +17,24 @@ include $(MAGMA_DIR)/Makefile.internal
 # in ZSRC, despite the name.
 
 # ----------
-# BLAS wrappers
-ZSRC := \
-        cblas_z.cpp             \
-
-# ----------
 # Cholesky, GPU interface
-ZSRC += \
-	zcposv_gpu.cpp          \
-	\
+ZSRC := \
 	zposv_gpu.cpp		\
 	zpotrf_gpu.cpp		\
 	zpotrf2_gpu.cpp		\
+	zpotrf_mgpu.cpp		\
+	zpotrf2_mgpu.cpp	\
+	zpotrf_msub.cpp		\
+	zpotrf2_msub.cpp	\
 	zpotri_gpu.cpp		\
 	zpotrs_gpu.cpp		\
 	zlauum_gpu.cpp		\
 	ztrtri_gpu.cpp		\
-	\
-	zpotrf_mgpu.cpp		\
-	zpotrf2_mgpu.cpp	\
-	\
-	zpotrf_msub.cpp		\
-	zpotrf2_msub.cpp	\
 
 # Cholesky, CPU interface
 ZSRC += \
 	zposv.cpp		\
 	zpotrf.cpp		\
-
-# Symmetric indefinite, CPU interface                                           
-ZSRC += \
-	zlahef_gpu.cpp		\
-	zhetrf.cpp		\
 
 # ----------
 # LU, GPU interface
@@ -56,14 +42,12 @@ ZSRC += \
 	zgesv_gpu.cpp		\
 	zgetrf_gpu.cpp		\
 	zgetrf2_gpu.cpp		\
-	zgetri_gpu.cpp		\
-	zgetrs_gpu.cpp		\
-	\
 	zgetrf_mgpu.cpp		\
 	zgetrf2_mgpu.cpp	\
-	\
 	zgetrf_msub.cpp		\
 	zgetrf2_msub.cpp	\
+	zgetri_gpu.cpp		\
+	zgetrs_gpu.cpp		\
 
 # LU, CPU interface
 ZSRC += \
@@ -77,14 +61,12 @@ ZSRC += \
 	zgeqrf2_gpu.cpp		\
 	zgeqrf2_2q_gpu.cpp	\
 	zgeqrf_gpu.cpp		\
-	zgeqr2x_gpu-v3.cpp	\
+	zgeqrf_mgpu.cpp		\
+	zgeqrf_msub.cpp		\
 	zgeqrs_gpu.cpp		\
 	zlarfb_gpu.cpp		\
 	zunmqr_gpu.cpp		\
-	\
-	zgeqrf_mgpu.cpp		\
-	\
-	zgeqrf_msub.cpp		\
+	zgeqr2x_gpu-v3.cpp	\
 
 # QR, CPU interface
 ZSRC += \

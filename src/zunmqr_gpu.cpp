@@ -1,32 +1,32 @@
 /*
-    -- clMAGMA (version 1.3.0) --
+    -- clMAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
        @precisions normal z -> s d c
 
 */
+
+#include <cstdio>
 #include "common_magma.h"
 
 extern "C" magma_int_t
-magma_zunmqr_gpu(
-    magma_side_t side, magma_trans_t trans,
-    magma_int_t m, magma_int_t n, magma_int_t k,
-    magmaDoubleComplex_ptr dA, size_t dA_offset, magma_int_t ldda,
-    magmaDoubleComplex *tau,
-    magmaDoubleComplex_ptr dC, size_t dC_offset, magma_int_t lddc,
-    magmaDoubleComplex *hwork, magma_int_t lwork,
-    magmaDoubleComplex_ptr dT, size_t dT_offset, magma_int_t nb,
-    magma_queue_t queue,
-    magma_int_t *info)
+magma_zunmqr_gpu(magma_side_t side, magma_trans_t trans,
+                 magma_int_t m, magma_int_t n, magma_int_t k,
+                 magmaDoubleComplex_ptr dA, size_t dA_offset, magma_int_t ldda,
+                 magmaDoubleComplex *tau,
+                 magmaDoubleComplex_ptr dC, size_t dC_offset, magma_int_t lddc,
+                 magmaDoubleComplex *hwork, magma_int_t lwork,
+                 magmaDoubleComplex_ptr dT, size_t dT_offset, magma_int_t nb,
+                 magma_int_t *info, magma_queue_t queue)
 {
-/*  -- clMAGMA (version 1.3.0) --
+/*  -- clMAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
     Purpose
     =======
@@ -74,8 +74,8 @@ magma_zunmqr_gpu(
 
     LDDA    (input) INTEGER
             The leading dimension of the array DA.
-            If SIDE = 'L', LDDA >= max(1,M);
-            if SIDE = 'R', LDDA >= max(1,N).
+            If SIDE = 'L', LDDA >= std::max(1,M);
+            if SIDE = 'R', LDDA >= std::max(1,N).
 
     TAU     (input) COMPLEX_16 array, dimension (K)
             TAU(i) must contain the scalar factor of the elementary
@@ -86,7 +86,7 @@ magma_zunmqr_gpu(
             On exit, C is overwritten by Q*C or Q**H * C or C * Q**H or C*Q.
 
     LDDC     (input) INTEGER
-            The leading dimension of the array DC. LDDC >= max(1,M).
+            The leading dimension of the array DC. LDDC >= std::max(1,M).
 
     HWORK    (workspace/output) COMPLEX_16 array, dimension (MAX(1,LWORK))
             On exit, if INFO = 0, HWORK(1) returns the optimal LWORK.
@@ -120,16 +120,19 @@ magma_zunmqr_gpu(
 
     magmaDoubleComplex c_one = MAGMA_Z_ONE;
 
+    magma_side_t side_ = side;
+    magma_trans_t trans_ = trans;
+
     magmaDoubleComplex_ptr dwork;
     magma_int_t i, lddwork;
 
     magma_int_t i1, i2, i3, ib, ic, jc, mi, ni, nq, nw, ret;
-    int left, notran, lquery;
-    magma_int_t lwkopt;
+    long int left, notran, lquery;
+    static magma_int_t lwkopt;
 
     *info = 0;
-    left   = (side == MagmaLeft);
-    notran = (trans == MagmaNoTrans);
+    left   = lapackf77_lsame(lapack_const(side_), lapack_const(MagmaLeft));
+    notran = lapackf77_lsame(lapack_const(trans_), lapack_const(MagmaNoTrans));
     lquery = (lwork == -1);
 
     if (!left || notran)
@@ -143,9 +146,9 @@ magma_zunmqr_gpu(
         nq = n;
         nw = m;
     }
-    if ( (!left) && (side != MagmaRight) ) {
+    if ( (!left) && (!lapackf77_lsame(lapack_const(side_), lapack_const(MagmaRight))) ) {
         *info = -1;
-    } else if ( (!notran) && (trans != MagmaConjTrans) ) {
+    } else if ( (!notran) && (!lapackf77_lsame(lapack_const(trans_), lapack_const(MagmaConjTrans))) ) {
         *info = -2;
     } else if (m < 0) {
         *info = -3;
@@ -153,11 +156,11 @@ magma_zunmqr_gpu(
         *info = -4;
     } else if (k < 0 || k > nq) {
         *info = -5;
-    } else if (ldda < max(1,nq)) {
+    } else if (ldda < std::max(1,nq)) {
         *info = -7;
-    } else if (lddc < max(1,m)) {
+    } else if (lddc < std::max(1,m)) {
         *info = -10;
-    } else if (lwork < max(1,nw) && ! lquery) {
+    } else if (lwork < std::max(1,nw) && ! lquery) {
         *info = -12;
     }
 
@@ -204,7 +207,7 @@ magma_zunmqr_gpu(
     {
         for (i=i1; i3<0 ? i>i2 : i<i2; i+=i3)
         {
-            ib = min(nb, k - i);
+            ib = std::min(nb, k - i);
             if (left){
                 mi = m - i;
                 ic = i;
@@ -238,8 +241,8 @@ magma_zunmqr_gpu(
             jc = i;
         }
 
-        magma_zgetmatrix(mi, ib, a_ref(i, i), ldda, hwork, mi, queue);
-        magma_zgetmatrix(mi, ni, c_ref(ic, jc), lddc, hwork+mi*ib, mi, queue);
+        magma_zgetmatrix(mi, ib, a_ref(i, i), ldda, hwork, 0, mi, queue);
+        magma_zgetmatrix(mi, ni, c_ref(ic, jc), lddc, hwork+mi*ib, 0, mi, queue);
 
         magma_int_t lhwork = lwork - mi*(ib + ni);
         lapackf77_zunmqr( MagmaLeftStr, MagmaConjTransStr,
@@ -249,7 +252,7 @@ magma_zunmqr_gpu(
                           hwork+mi*(ib+ni), &lhwork, info);
 
         // send the updated part of c back to the GPU
-        magma_zsetmatrix(mi, ni, hwork+mi*ib, mi, c_ref(ic, jc), lddc, queue);
+        magma_zsetmatrix(mi, ni, hwork+mi*ib, 0, mi, c_ref(ic, jc), lddc, queue);
     }
 
     return *info;

@@ -1,13 +1,15 @@
 /*
-     -- clMAGMA (version 1.3.0) --
+     -- clMAGMA (version 1.1.0) --
         Univ. of Tennessee, Knoxville
         Univ. of California, Berkeley
         Univ. of Colorado, Denver
-        @date November 2014
+        @date January 2014
   
         @precisions normal z -> s d c
 
 */
+
+#include <cstdio>
 #include "common_magma.h"
 #include "trace.h"
 // produces pointer and offset as two args to magmaBLAS routines
@@ -18,18 +20,16 @@
 
 extern cl_context gContext;
 
-extern "C" magma_int_t
-magma_zpotrf_gpu(
-    magma_uplo_t   uplo, magma_int_t    n,
-    magmaDoubleComplex_ptr dA, size_t dA_offset, magma_int_t ldda,
-    magma_queue_t queue,
-    magma_int_t*   info )
+magma_err_t
+magma_zpotrf_gpu( magma_uplo_t   uplo, magma_int_t    n,
+          magmaDoubleComplex_ptr dA, size_t dA_offset, magma_int_t ldda,
+          magma_err_t*   info, magma_queue_t queue )
 {
-/*  -- clMAGMA (version 1.3.0) --
+/*  -- clMAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
     Purpose   
     =======   
@@ -65,9 +65,9 @@ magma_zpotrf_gpu(
             factorization dA = U\*\*H*U or dA = L*L\*\*H.   
 
     LDDA    (input) INTEGER   
-            The leading dimension of the array dA.  LDDA >= max(1,N).
+            The leading dimension of the array dA.  LDDA >= std::max(1,N).
             To benefit from coalescent memory accesses LDDA must be
-            divisible by 16.
+            dividable by 16.
 
     INFO    (output) INTEGER   
             = 0:  successful exit   
@@ -87,8 +87,8 @@ magma_zpotrf_gpu(
 /*
     magma_queue_t queue2;
     magma_device_t device;
-    magma_int_t num = 0;
-    magma_getdevices(&device, 1, &num);
+    int num = 0;
+    magma_get_devices(&device, 1, &num);
     magma_queue_create(device, &queue2);
 */
 // end
@@ -99,14 +99,14 @@ magma_zpotrf_gpu(
     double    one =  1.0;
     double  m_one = -1.0;
     magmaDoubleComplex* work;
-    magma_int_t err;
+    magma_err_t err;
     
     *info = 0;
     if ( uplo != MagmaUpper && uplo != MagmaLower ) {
         *info = -1;
     } else if ( n < 0 ) {
         *info = -2;
-    } else if ( ldda < max(1,n) ) {
+    } else if ( ldda < std::max(1,n) ) {
         *info = -4;
     }
     if ( *info != 0 ) {
@@ -127,9 +127,9 @@ magma_zpotrf_gpu(
     
     if ((nb <= 1) || (nb >= n)) {
         // use unblocked code
-        magma_zgetmatrix( n, n, dA, dA_offset, ldda, work, n, queue );
+        chk( magma_zgetmatrix( n, n, dA, dA_offset, ldda, work, 0, n, queue ));
         lapackf77_zpotrf( lapack_uplo_const(uplo), &n, work, &n, info );
-        magma_zsetmatrix( n, n, work, n, dA, dA_offset, ldda, queue );
+        chk( magma_zsetmatrix( n, n, work, 0, n, dA, dA_offset, ldda, queue ));
     }
     else {
         //magma_queue_t queues[2] = {queue, queue2};    
@@ -151,13 +151,13 @@ magma_zpotrf_gpu(
             // using the left looking algorithm
             for( j = 0; j < n; j += nb ) {
                 // apply all previous updates to diagonal block
-                jb = min( nb, n-j );
+                jb = std::min( nb, n-j );
                 if ( j > 0 ) {
                     trace_gpu_start(0, 0, "herk", "herk");
                     trace_event = trace_gpu_end(0, 0);
-                    magma_zherk_trace( MagmaUpper, MagmaConjTrans, jb, j,
+                    chk( magma_zherk_trace( MagmaUpper, MagmaConjTrans, jb, j,
                         m_one, dA(0,j), ldda,
-                          one, dA(j,j), ldda, queue, trace_event );
+                          one, dA(j,j), ldda, queue, trace_event ));
                     //clFinish(queue);
                 }
                 
@@ -168,24 +168,24 @@ magma_zpotrf_gpu(
                 event = trace_event;
                 
                 //trace_cpu_start(0, "comm_get", "get");
-                //magma_zgetmatrix_async( jb, jb, dA(j,j), ldda, work, 0, jb, queue, &event1 );
-                magma_zgetmatrix_async( jb, jb, dA(j,j), ldda, work, 0, jb, queue, event );
+                //chk( magma_zgetmatrix_async( jb, jb, dA(j,j), ldda, work, 0, jb, queue, &event1 ));
+                chk( magma_zgetmatrix_async( jb, jb, dA(j,j), ldda, work, 0, jb, queue, event ));
 
                 // apply all previous updates to block row right of diagonal block
                 if ( j+jb < n && j > 0) {
                     trace_gpu_start(0, 0, "gemm", "gemm");
                     trace_event = trace_gpu_end(0, 0);
-                    magma_zgemm_trace( MagmaConjTrans, MagmaNoTrans,
+                    chk( magma_zgemm_trace( MagmaConjTrans, MagmaNoTrans,
                         jb, n-j-jb, j,
                         mz_one, dA(0, j   ), ldda,
                                 dA(0, j+jb), ldda,
-                        z_one,  dA(j, j+jb), ldda, queue, trace_event );
+                        z_one,  dA(j, j+jb), ldda, queue, trace_event ));
                 }
                 
                 // simultaneous with above zgemm, transfer data, factor
                 // diagonal block on CPU, and test for positive definiteness
-                magma_event_sync( *event );
-                //magma_event_sync( event1 );
+                chk( magma_event_sync( *event ));
+                //chk( magma_event_sync( event1 ));
                 trace_cpu_start(0, "potrf", "potrf");
                 lapackf77_zpotrf( MagmaUpperStr, &jb, work, &jb, info );
                 trace_cpu_end(0);
@@ -200,21 +200,21 @@ magma_zpotrf_gpu(
                 event = trace_event;
                 
                 //trace_cpu_start(0, "comm_set", "set");
-                //magma_zsetmatrix_async( jb, jb, work, 0, jb, dA(j,j), ldda, queue, &event1 );
-                magma_zsetmatrix_async( jb, jb, work, 0, jb, dA(j,j), ldda, queue, trace_event );
+                //chk( magma_zsetmatrix_async( jb, jb, work, 0, jb, dA(j,j), ldda, queue, &event1 ));
+                chk( magma_zsetmatrix_async( jb, jb, work, 0, jb, dA(j,j), ldda, queue, trace_event ));
                 
                 // apply diagonal block to block row right of diagonal block
                 if ( j+jb < n ) {
-                    magma_event_sync( *event );
-                    //magma_event_sync( event1 );
+                    chk( magma_event_sync( *event ));
+                    //chk( magma_event_sync( event1 ));
     //                trace_cpu_end(0);
                     trace_gpu_start(0, 0, "trsm", "trsm");
                     trace_event = trace_gpu_end(0, 0);
-                    magma_ztrsm_trace(
+                    chk( magma_ztrsm_trace(
                         MagmaLeft, MagmaUpper, MagmaConjTrans, MagmaNonUnit,
                         jb, n-j-jb,
                         z_one, dA(j, j),    ldda,
-                               dA(j, j+jb), ldda, queue, trace_event );
+                               dA(j, j+jb), ldda, queue, trace_event ));
                 }
             }
         }
@@ -224,13 +224,13 @@ magma_zpotrf_gpu(
             // using the left looking algorithm
             for( j = 0; j < n; j += nb ) {
                 // apply all previous updates to diagonal block
-                jb = min( nb, n-j );
+                jb = std::min( nb, n-j );
                 if(j>0){
                     trace_gpu_start(0, 0, "herk", "herk");
                     trace_event = trace_gpu_end(0, 0);
-                    magma_zherk_trace( MagmaLower, MagmaNoTrans, jb, j,
+                    chk( magma_zherk_trace( MagmaLower, MagmaNoTrans, jb, j,
                         m_one, dA(j, 0), ldda,
-                        one, dA(j, j), ldda, queue, trace_event );
+                        one, dA(j, j), ldda, queue, trace_event ));
                     //clFinish(queue);
                 }
                 // start asynchronous data transfer
@@ -240,25 +240,25 @@ magma_zpotrf_gpu(
                 event = trace_event;
                 
                 //trace_cpu_start(0, "comm_get", "get");
-                //magma_zgetmatrix_async( jb, jb, dA(j,j), ldda, work, 0, jb, queue, &event1 );
-                magma_zgetmatrix_async( jb, jb, dA(j,j), ldda, work, 0, jb, queue, event );
-                //magma_event_sync( *event );
+                //chk( magma_zgetmatrix_async( jb, jb, dA(j,j), ldda, work, 0, jb, queue, &event1 ));
+                chk( magma_zgetmatrix_async( jb, jb, dA(j,j), ldda, work, 0, jb, queue, event ));
+                //chk( magma_event_sync( *event ));
 
                 // apply all previous updates to block column below diagonal block
                 if ( j+jb < n && j > 0) {
                     trace_gpu_start(0, 0, "gemm", "gemm");
                     trace_event = trace_gpu_end(0, 0);
-                    magma_zgemm_trace( MagmaNoTrans, MagmaConjTrans,
+                    chk( magma_zgemm_trace( MagmaNoTrans, MagmaConjTrans,
                         n-j-jb, jb, j,
                         mz_one, dA(j+jb, 0), ldda,
                                 dA(j,    0), ldda,
-                        z_one,  dA(j+jb, j), ldda, queue, trace_event );
+                        z_one,  dA(j+jb, j), ldda, queue, trace_event ));
                     /*
-                    magma_zgemm( MagmaNoTrans, MagmaConjTrans,
+                    chk( magma_zgemm( MagmaNoTrans, MagmaConjTrans,
                         n-j-jb, jb, j,
                         mz_one, dA(j+jb, 0), ldda,
                                 dA(j,    0), ldda,
-                        z_one,  dA(j+jb, j), ldda, queue);
+                        z_one,  dA(j+jb, j), ldda, queue));
                     */
                 }
                 
@@ -271,9 +271,9 @@ magma_zpotrf_gpu(
                 if(status != CL_COMPLETE){
                     //printf("%d\n", status);
                 */
-                magma_event_sync( *event );
+                chk( magma_event_sync( *event ));
                 //}
-                //magma_event_sync( event1 );
+                //chk( magma_event_sync( event1 ));
                 trace_cpu_start(0, "potrf", "potrf");
                 lapackf77_zpotrf( MagmaLowerStr, &jb, work, &jb, info );
                 trace_cpu_end(0);
@@ -288,31 +288,31 @@ magma_zpotrf_gpu(
                 event = trace_event;
                 
                 //trace_cpu_start(0, "comm_set", "set");
-                //magma_zsetmatrix_async( jb, jb, work, 0, jb, dA(j,j), ldda, queue, &event1 );
-                magma_zsetmatrix_async( jb, jb, work, 0, jb, dA(j,j), ldda, queue, trace_event );
+                //chk( magma_zsetmatrix_async( jb, jb, work, 0, jb, dA(j,j), ldda, queue, &event1 ));
+                chk( magma_zsetmatrix_async( jb, jb, work, 0, jb, dA(j,j), ldda, queue, trace_event ));
                 
                 // apply diagonal block to block column below diagonal
                 if ( j+jb < n ) {
-                    magma_event_sync( *event );
-                    //magma_event_sync( event1 );
+                    chk( magma_event_sync( *event ));
+                    //chk( magma_event_sync( event1 ));
     //                trace_cpu_end(0);
                     trace_gpu_start(0, 0, "trsm", "trsm");
                     trace_event = trace_gpu_end(0, 0);
-                    magma_ztrsm_trace(
+                    chk( magma_ztrsm_trace(
                         MagmaRight, MagmaLower, MagmaConjTrans, MagmaNonUnit,
                         n-j-jb, jb,
                         z_one, dA(j, j   ), ldda,
-                               dA(j+jb, j), ldda, queue, trace_event );
+                               dA(j+jb, j), ldda, queue, trace_event ));
                 }
             }
         }
     
     }
-    magma_queue_sync( queue );
-//    magma_queue_sync( queue2 );
+    chk( magma_queue_sync( queue ));
+//    chk( magma_queue_sync( queue2 ));
 //    magma_queue_destroy( queue2 );
     trace_finalize("zpotrf.svg", "trace.css");
-    magma_free_cpu( work );
+    chk( magma_free_cpu( work ));
     
     return *info;
 }

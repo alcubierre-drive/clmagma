@@ -1,29 +1,29 @@
 /*
-    -- clMAGMA (version 1.3.0) --
+    -- clMAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
-       @generated from zunghr.cpp normal z -> s, Sat Nov 15 00:21:37 2014
+       @generated from zunghr.cpp normal z -> s, Fri Jan 10 15:51:18 2014
 
 */
+
+#include <cstdio>
 #include "common_magma.h"
 
-extern "C" magma_int_t
-magma_sorghr(
-    magma_int_t n, magma_int_t ilo, magma_int_t ihi,
-    float *a, magma_int_t lda,
-    float *tau,
-    magmaFloat_ptr dT, size_t dT_offset, magma_int_t nb,
-    magma_queue_t queue,
-    magma_int_t *info )
+extern "C" magma_err_t
+magma_sorghr(magma_int_t n, magma_int_t ilo, magma_int_t ihi,
+             float *a, magma_int_t lda,
+             float *tau,
+             magmaFloat_ptr dT, size_t dT_offset, magma_int_t nb,
+             magma_int_t *info, magma_queue_t queue )
 {
-/*  -- clMAGMA (version 1.3.0) --
+/*  -- clMAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
     Purpose
     =======
@@ -51,7 +51,7 @@ magma_sorghr(
             On exit, the N-by-N unitary matrix Q.
 
     LDA     (input) INTEGER
-            The leading dimension of the array A. LDA >= max(1,N).
+            The leading dimension of the array A. LDA >= std::max(1,N).
 
     TAU     (input) REAL array, dimension (N-1)
             TAU(i) must contain the scalar factor of the elementary
@@ -80,11 +80,11 @@ magma_sorghr(
     nh = ihi - ilo;
     if (n < 0)
       *info = -1;
-    else if (ilo < 1 || ilo > max(1,n))
+    else if (ilo < 1 || ilo > std::max(1,n))
       *info = -2;
-    else if (ihi < min(ilo,n) || ihi > n)
+    else if (ihi < std::min(ilo,n) || ihi > n)
       *info = -3;
-    else if (lda < max(1,n))
+    else if (lda < std::max(1,n))
         *info = -5;
 
     if (*info != 0) {
@@ -122,13 +122,12 @@ magma_sorghr(
       *a_ref(j, j) = MAGMA_S_ONE;
     }
 
-    if (nh > 0) {
+    if (nh > 0)
       /* Generate Q(ilo+1:ihi,ilo+1:ihi) */
       magma_sorgqr(nh, nh, nh,
                    a_ref(ilo, ilo), lda,
-                   tau+ilo-1, dT, dT_offset, nb, queue, &iinfo);
-    }
-    
+                   tau+ilo-1, dT, dT_offset, nb, &iinfo, queue);
+
     return *info;
 } /* magma_sorghr */
 

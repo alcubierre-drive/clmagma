@@ -1,19 +1,19 @@
 /*
- *  -- clMAGMA (version 1.3.0) --
+ *  -- clMAGMA (version 1.1.0) --
  *     Univ. of Tennessee, Knoxville
  *     Univ. of California, Berkeley
  *     Univ. of Colorado, Denver
- *     @date November 2014
+ *     @date January 2014
  *
  *
  **/
 
 // IWOCL 2013 benchmark
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <math.h>
+#include <cstdlib>
+#include <cstdio>
+#include <cstring>
+#include <cmath>
 
 #include "assert.h"
 #include "flops.h"
@@ -52,17 +52,17 @@ int main( int argc, char** argv)
     /* Initialize */
     magma_queue_t  queue;
     magma_device_t device[MagmaMaxGPUs];
-    magma_int_t num = 0;
-    magma_int_t err;
+    int num = 0;
+    magma_err_t err;
     magma_init();
-    err = magma_getdevices( device, MagmaMaxGPUs, &num );
+    err = magma_get_devices( device, MagmaMaxGPUs, &num );
     if ( err != 0 || num < 1 ) {
-        fprintf( stderr, "magma_getdevices failed: %d\n", (int) err );
+        fprintf( stderr, "magma_get_devices failed: %d\n", err );
         exit(-1);
     }
     err = magma_queue_create( device[0], &queue );
     if ( err != 0 ) {
-        fprintf( stderr, "magma_queue_create failed: %d\n", (int) err );
+        fprintf( stderr, "magma_queue_create failed: %d\n", err );
         exit(-1);
     }
 
@@ -75,7 +75,7 @@ int main( int argc, char** argv)
         int count = 10000;
         //int count = 400;
         int j;
-        magmablas_empty( d_A, d_B, d_C, queue );
+        magmablas_zempty(queue, d_A, d_B, d_C);
         clFinish(queue);
         int kk;
         t_avg = 0, t_min = 50, t_max = 0;
@@ -84,7 +84,7 @@ int main( int argc, char** argv)
                 if(j==0){
                     t_start = magma_wtime();
                 }
-                magmablas_empty( d_A, d_B, d_C, queue );
+                magmablas_zempty(queue, d_A, d_B, d_C);
                 clFlush(queue);
             }
             clFinish(queue);
@@ -104,7 +104,7 @@ int main( int argc, char** argv)
                 if(j==0){
                     t_start = magma_wtime();
                 }
-                magmablas_empty( d_A, d_B, d_C, queue );
+                magmablas_zempty(queue, d_A, d_B, d_C);
                 clFinish(queue);
             }
             t_end = magma_wtime();
@@ -173,8 +173,7 @@ int main( int argc, char** argv)
         int m = 1, n = 1, k = 1, ldda = 1, lddb = 1, lddc = 1;
         printf("k: %d\n", k);
         double alpha = 1.0, beta = 1.0;
-        magma_trans_t transA = MagmaNoTrans;
-        magma_trans_t transB = MagmaNoTrans;
+        int transA = MagmaNoTrans, transB = MagmaNoTrans;
         
         double hA[1] = {1.0};
         
@@ -182,15 +181,14 @@ int main( int argc, char** argv)
         TESTING_MALLOC_DEV( d_B, double, 1 );
         TESTING_MALLOC_DEV( d_C, double, 1 );
     
-        magma_dsetmatrix(1, 1, hA, 1, d_A, 0, ldda, queue); 
-        magma_dsetmatrix(1, 1, hA, 1, d_B, 0, ldda, queue); 
-        magma_dsetmatrix(1, 1, hA, 1, d_C, 0, ldda, queue); 
+        magma_dsetmatrix(1, 1, hA, 0, 1, d_A, 0, ldda, queue); 
+        magma_dsetmatrix(1, 1, hA, 0, 1, d_B, 0, ldda, queue); 
+        magma_dsetmatrix(1, 1, hA, 0, 1, d_C, 0, ldda, queue); 
 
 
         // DGEMM
-        clblasDgemm(
-                clblasColumnMajor,
-                clblasNoTrans, clblasNoTrans, m, n, k, alpha, d_A, 0, ldda,
+        clAmdBlasDgemmEx(clAmdBlasColumnMajor,
+                clAmdBlasNoTrans, clAmdBlasNoTrans, m, n, k, alpha, d_A, 0, ldda,
                 d_B, 0, lddb, beta, d_C, 0, lddc, 
                 1, &queue,
                 0, NULL, NULL);
@@ -204,9 +202,9 @@ int main( int argc, char** argv)
                 if(j==0){
                     t_start = magma_wtime();
                 }
-                clblasStatus err = clblasDgemm(
-                    clblasColumnMajor,
-                    clblasNoTrans, clblasNoTrans, m, n, k, alpha, d_A, 0, ldda,
+                clAmdBlasStatus err = clAmdBlasDgemmEx(
+                    clAmdBlasColumnMajor,
+                    clAmdBlasNoTrans, clAmdBlasNoTrans, m, n, k, alpha, d_A, 0, ldda,
                     d_B, 0, lddb, beta, d_C, 0, lddc, 
                     1, &queue,
                     0, NULL, NULL);
@@ -232,9 +230,8 @@ int main( int argc, char** argv)
                 if(j==0){
                     t_start = magma_wtime();
                 }        
-                clblasDgemm(
-                    clblasColumnMajor,
-                    clblasNoTrans, clblasNoTrans, m, n, k, alpha, d_A, 0, ldda,
+                clAmdBlasDgemmEx(clAmdBlasColumnMajor,
+                    clAmdBlasNoTrans, clAmdBlasNoTrans, m, n, k, alpha, d_A, 0, ldda,
                     d_B, 0, lddb, beta, d_C, 0, lddc, 
                     1, &queue,
                     0, NULL, NULL);

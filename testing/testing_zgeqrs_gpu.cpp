@@ -1,19 +1,19 @@
 /*
- *  -- clMAGMA (version 1.3.0) --
+ *  -- clMAGMA (version 1.1.0) --
  *     Univ. of Tennessee, Knoxville
  *     Univ. of California, Berkeley
  *     Univ. of Colorado, Denver
- *     @date November 2014
+ *     @date January 2014
  *
  * @precisions normal z -> c d s
  *
  **/
 
 // includes, system
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <math.h>
+#include <cstdlib>
+#include <cstdio>
+#include <cstring>
+#include <cmath>
 
 // includes, project
 #include "flops.h"
@@ -40,17 +40,17 @@ int main( int argc, char** argv)
     /* Initialize */
     magma_queue_t  queue;
     magma_device_t device[ MagmaMaxGPUs ];
-    magma_int_t num = 0;
-    magma_int_t err;
+    int num = 0;
+    magma_err_t err;
     magma_init();
-    err = magma_getdevices( device, MagmaMaxGPUs, &num );
+    err = magma_get_devices( device, MagmaMaxGPUs, &num );
     if ( err != 0 || num < 1 ) {
-        fprintf( stderr, "magma_getdevices failed: %d\n", (int) err );
+        fprintf( stderr, "magma_get_devices failed: %d\n", err );
         exit(-1);
     }
     err = magma_queue_create( device[0], &queue );
     if ( err != 0 ) {
-        fprintf( stderr, "magma_queue_create failed: %d\n", (int) err );
+        fprintf( stderr, "magma_queue_create failed: %d\n", err );
         exit(-1);
     }
   
@@ -99,7 +99,7 @@ int main( int argc, char** argv)
     ldda   = ((M+31)/32)*32;
     lddb   = ldda;
     n2     = M * N;
-    min_mn = min(M, N);
+    min_mn = std::min(M, N);
     nb     = magma_get_zgeqrf_nb(M);
     lda = ldb = M;
     lworkgpu = (M-N + nb)*(nrhs+2*nb);
@@ -126,7 +126,7 @@ int main( int argc, char** argv)
                       &M, &nrhs, &min_mn, h_A, &lda, tau,
                       h_X, &ldb, tmp, &lhwork, &info);
     l2 = (magma_int_t)MAGMA_Z_REAL( tmp[0] );
-    lhwork = max( max( l1, l2 ), lworkgpu );
+    lhwork = std::max( std::max( l1, l2 ), lworkgpu );
 
     TESTING_MALLOC_PIN( hwork, magmaDoubleComplex, lhwork );
 
@@ -138,7 +138,7 @@ int main( int argc, char** argv)
         if (argc == 1){
             M = N = size[i];
         }
-        min_mn= min(M, N);
+        min_mn= std::min(M, N);
         ldb = lda = M;
         n2    = lda*N;
         ldda  = ((M+31)/32)*32;
@@ -157,17 +157,17 @@ int main( int argc, char** argv)
            Performs operation using MAGMA
            =================================================================== */
         /* Warm up to measure the performance */
-        magma_zsetmatrix( M, N,    h_A, lda, d_A, 0, ldda, queue );
-        magma_zsetmatrix( M, nrhs, h_B, ldb, d_B, 0, lddb, queue );
+        magma_zsetmatrix( M, N,    h_A, 0, lda, d_A, 0, ldda, queue );
+        magma_zsetmatrix( M, nrhs, h_B, 0, ldb, d_B, 0, lddb, queue );
         magma_zgels_gpu( MagmaNoTrans, M, N, nrhs, d_A, 0, ldda,
-                         d_B, 0, lddb, hwork, lworkgpu, queue, &info);
+                         d_B, 0, lddb, hwork, lworkgpu, &info, queue);
         
-        magma_zsetmatrix( M, N,    h_A, lda, d_A, 0, ldda, queue );
-        magma_zsetmatrix( M, nrhs, h_B, ldb, d_B, 0, lddb, queue );
+        magma_zsetmatrix( M, N,    h_A, 0, lda, d_A, 0, ldda, queue );
+        magma_zsetmatrix( M, nrhs, h_B, 0, ldb, d_B, 0, lddb, queue );
         
         gpu_time = magma_wtime();
         magma_zgels_gpu( MagmaNoTrans, M, N, nrhs, d_A, 0, ldda,
-                         d_B, 0, lddb, hwork, lworkgpu, queue, &info);
+                         d_B, 0, lddb, hwork, lworkgpu, &info, queue);
         gpu_time = magma_wtime() - gpu_time;
         if (info < 0)
             printf("Argument %d of magma_zgels had an illegal value.\n", -info);
@@ -175,7 +175,7 @@ int main( int argc, char** argv)
         gpu_perf = gflops / gpu_time;
 
         // Get the solution in h_X
-        magma_zgetmatrix( N, nrhs, d_B, 0, lddb, h_X, ldb, queue );
+        magma_zgetmatrix( N, nrhs, d_B, 0, lddb, h_X, 0, ldb, queue );
 
         // compute the residual
         blasf77_zgemm( MagmaNoTransStr, MagmaNoTransStr, &M, &nrhs, &N,

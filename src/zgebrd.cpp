@@ -1,13 +1,15 @@
 /*
-     -- clMAGMA (version 1.3.0) --
+     -- clMAGMA (version 1.1.0) --
         Univ. of Tennessee, Knoxville
         Univ. of California, Berkeley
         Univ. of Colorado, Denver
-        @date November 2014
+        @date January 2014
 
         @precisions normal z -> s d c
 
 */
+
+#include <cstdio>
 #include "common_magma.h"
 
 // produces pointer and offset as two args to magmaBLAS routines
@@ -16,20 +18,18 @@
 // produces pointer as single arg to BLAS routines
 #define A(i,j)  &a[ (i) + (j)*lda ]
 
-extern "C" magma_int_t
-magma_zgebrd(
-    magma_int_t m, magma_int_t n,
-    magmaDoubleComplex *a, magma_int_t lda, double *d, double *e,
-    magmaDoubleComplex *tauq, magmaDoubleComplex *taup,
-    magmaDoubleComplex *work, magma_int_t lwork,
-    magma_queue_t queue,
-    magma_int_t *info)
+magma_err_t
+magma_zgebrd(magma_int_t m, magma_int_t n,
+             magmaDoubleComplex *a, magma_int_t lda, double *d, double *e,
+             magmaDoubleComplex *tauq, magmaDoubleComplex *taup,
+             magmaDoubleComplex *work, magma_int_t lwork,
+             magma_int_t *info, magma_queue_t queue)
 {
-/*  -- MAGMA (version 1.3.0) --
+/*  -- MAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
     Purpose
     =======
@@ -66,22 +66,22 @@ magma_zgebrd(
             See Further Details.
 
     LDA     (input) INTEGER
-            The leading dimension of the array A.  LDA >= max(1,M).
+            The leading dimension of the array A.  LDA >= std::max(1,M).
 
-    D       (output) double precision array, dimension (min(M,N))
+    D       (output) double precision array, dimension (std::min(M,N))
             The diagonal elements of the bidiagonal matrix B:
             D(i) = A(i,i).
 
-    E       (output) double precision array, dimension (min(M,N)-1)
+    E       (output) double precision array, dimension (std::min(M,N)-1)
             The off-diagonal elements of the bidiagonal matrix B:
             if m >= n, E(i) = A(i,i+1) for i = 1,2,...,n-1;
             if m < n, E(i) = A(i+1,i) for i = 1,2,...,m-1.
 
-    TAUQ    (output) COMPLEX_16 array dimension (min(M,N))
+    TAUQ    (output) COMPLEX_16 array dimension (std::min(M,N))
             The scalar factors of the elementary reflectors which
             represent the orthogonal matrix Q. See Further Details.
 
-    TAUP    (output) COMPLEX_16 array, dimension (min(M,N))
+    TAUP    (output) COMPLEX_16 array, dimension (std::min(M,N))
             The scalar factors of the elementary reflectors which
             represent the orthogonal matrix P. See Further Details.
 
@@ -160,13 +160,12 @@ magma_zgebrd(
     work[0] = MAGMA_Z_MAKE( lwkopt, 0. );
     lquery = (lwork == -1);
     
-    /* Check arguments */
     *info = 0;
     if (m < 0) {
         *info = -1;
     } else if (n < 0) {
         *info = -2;
-    } else if (lda < max(1,m)) {
+    } else if (lda < std::max(1,m)) {
         *info = -4;
     } else if ( lwork < lwkopt && (! lquery) ) {
         *info = -10;
@@ -179,17 +178,18 @@ magma_zgebrd(
         return *info;
 
     /* Quick return if possible */
-    minmn = min(m,n);
+    minmn = std::min(m,n);
     if (minmn == 0) {
         work[0] = c_one;
         return *info;
     }
 
     size_t da_offset = 0;
-    if (MAGMA_SUCCESS != magma_zmalloc( &da, n*ldda + (m + n)*nb )) {
+    if (MAGMA_SUCCESS != magma_zmalloc( &da, (n*ldda + (m + n)*nb ) )) {
         *info = MAGMA_ERR_DEVICE_ALLOC;
         return *info;
     }
+    
     //dwork = da + (n)*ldda;
     dwork = da;
     size_t dwork_offset = da_offset+(n)*ldda;
@@ -201,11 +201,11 @@ magma_zgebrd(
     nx = 128;
 
     /* Copy the matrix to the GPU */
-    if (minmn - nx >= 1) {
-        magma_zsetmatrix( m, n, a, lda, da, da_offset, ldda, queue );
-    }
-    
+    if (minmn-nx>=1)
+      magma_zsetmatrix( m, n, a, 0, lda, da, da_offset, ldda, queue );
+
     for (i=0; i< (minmn - nx); i += nb) {
+
         /*  Reduce rows and columns i:i+nb-1 to bidiagonal form and return
             the matrices X and Y which are needed to update the unreduced
             part of the matrix */
@@ -214,17 +214,17 @@ magma_zgebrd(
 
         /*   Get the current panel (no need for the 1st iteration) */
         if ( i > 0 ) {
-            magma_zgetmatrix( nrow, nb, dA(i, i), ldda, A( i, i), lda, queue );
+            magma_zgetmatrix( nrow, nb, dA(i, i), ldda, A( i, i), 0, lda, queue );
             magma_zgetmatrix( nb, ncol - nb,
                               dA(i, i+nb), ldda,
-                              A( i, i+nb), lda, queue );
+                              A( i, i+nb), 0, lda, queue );
         }
 
         magma_zlabrd_gpu(nrow, ncol, nb,
                          A(i, i),          lda,    dA(i, i),          ldda,
                          d+i, e+i, tauq+i, taup+i,
-                         work,             ldwrkx, dwork, dwork_offset,             ldwrkx,  // x, dx
-                         work+(ldwrkx*nb), ldwrky, dwork, dwork_offset+(ldwrkx*nb), ldwrky,  // y, dy
+                         work,             ldwrkx, dwork, dwork_offset, ldwrkx,  // x, dx
+                         work+(ldwrkx*nb), ldwrky, dwork, dwork_offset+(ldwrkx*nb), ldwrky, // y, dy
                          queue );
 
         /*  Update the trailing submatrix A(i+nb:m,i+nb:n), using an update
@@ -233,15 +233,15 @@ magma_zgebrd(
         ncol = n - i - nb;
 
         // Send Y back to the GPU
-        magma_zsetmatrix( nrow, nb, work+nb, ldwrkx, dwork, dwork_offset+nb, ldwrkx, queue );
+        magma_zsetmatrix( nrow, nb, work+nb, 0, ldwrkx, dwork, dwork_offset+nb, ldwrkx, queue );
         magma_zsetmatrix( ncol, nb,
-                          work  +               (ldwrkx+1)*nb, ldwrky,
+                          work  +               (ldwrkx+1)*nb, 0, ldwrky,
                           dwork, dwork_offset + (ldwrkx+1)*nb, ldwrky, queue );
 
         magma_zgemm( MagmaNoTrans, MagmaConjTrans,
                      nrow, ncol, nb,
                      c_neg_one, dA(i+nb, i   ),      ldda,
-                                dwork, dwork_offset+(ldwrkx+1)*nb, ldwrky,
+                     dwork, dwork_offset+(ldwrkx+1)*nb, ldwrky,
                      c_one,     dA(i+nb, i+nb), ldda, queue );
 
         magma_zgemm( MagmaNoTrans, MagmaNoTrans,
@@ -270,10 +270,9 @@ magma_zgebrd(
     nrow = m - i;
     ncol = n - i;
 
-    if ( 0 < minmn - nx ) {
-        magma_zgetmatrix( nrow, ncol, dA(i, i), ldda, A( i, i), lda, queue );
-    }
-    
+    if ( 0 < (minmn-nx) )
+      magma_zgetmatrix( nrow, ncol, dA(i, i), ldda, A( i, i), 0, lda, queue );
+
     lapackf77_zgebrd( &nrow, &ncol,
                       A(i, i), &lda, d+i, e+i,
                       tauq+i, taup+i, work, &lwork, &iinfo);

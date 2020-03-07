@@ -1,29 +1,30 @@
 /*
-    -- clMAGMA (version 1.3.0) --
+    -- clMAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
-       @generated from zlarfb_gpu.cpp normal z -> d, Sat Nov 15 00:21:37 2014
+       @generated from zlarfb_gpu.cpp normal z -> d, Fri Jan 10 15:51:18 2014
 */
+
+#include <cstdio>
 #include "common_magma.h"
 
-extern "C" magma_int_t
-magma_dlarfb_gpu(
-    magma_side_t side, magma_trans_t trans, magma_direct_t direct, magma_storev_t storev,
-    magma_int_t m, magma_int_t n, magma_int_t k,
-    magmaDouble_ptr dV, size_t dV_offset,   magma_int_t ldv,
-    magmaDouble_ptr dT, size_t dT_offset,   magma_int_t ldt,
-    magmaDouble_ptr dC, size_t dC_offset,   magma_int_t ldc,
-    magmaDouble_ptr dwork, size_t dwork_offset, magma_int_t ldwork,
-    magma_queue_t queue)
+magma_err_t
+magma_dlarfb_gpu( int side, int trans, int direct, int storev,
+                  magma_int_t m, magma_int_t n, magma_int_t k,
+                  magmaDouble_ptr dV, size_t dV_offset,   magma_int_t ldv,
+                  magmaDouble_ptr dT, size_t dT_offset,   magma_int_t ldt,
+                  magmaDouble_ptr dC, size_t dC_offset,   magma_int_t ldc,
+                  magmaDouble_ptr dwork, size_t dwork_offset, magma_int_t ldwork,
+                  magma_queue_t queue)
 {
-/*  -- clMAGMA (version 1.3.0) --
+/*  -- clMAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
     Purpose
     =======
@@ -66,7 +67,7 @@ magma_dlarfb_gpu(
             The matrix V. See further details.
 
     LDV     (input) INTEGER
-            The leading dimension of the array V. LDV >= max(1,M);
+            The leading dimension of the array V. LDV >= std::max(1,M);
 
     DT      (input) DOUBLE_PRECISION array, dimension (LDT,K)
             The triangular k by k matrix T in the representation of the
@@ -80,14 +81,14 @@ magma_dlarfb_gpu(
             On exit, C is overwritten by H*C.
 
     LDC     (input) INTEGER
-            The leading dimension of the array C. LDA >= max(1,M).
+            The leading dimension of the array C. LDA >= std::max(1,M).
 
     WORK    (workspace) DOUBLE_PRECISION array, dimension (LDWORK,K)
 
     LDWORK  (input) INTEGER
             The leading dimension of the array WORK.
-            If SIDE == 'L', LDWORK >= max(1,N);
-            if SIDE == 'R', LDWORK >= max(1,M);
+            If SIDE == 'L', LDWORK >= std::max(1,N);
+            if SIDE == 'R', LDWORK >= std::max(1,M);
     ===================================================================      */
 
     /* TODO: replace with updated larfb_gpu from CUDA MAGMA */
@@ -105,9 +106,9 @@ magma_dlarfb_gpu(
         return MAGMA_SUCCESS;
     }
 
-    magma_trans_t transt;
+    magma_int_t transt;
     if (trans == MagmaNoTrans)
-      transt = MagmaConjTrans;
+      transt = MagmaTrans;
     else
       transt = MagmaNoTrans;
 
@@ -115,7 +116,7 @@ magma_dlarfb_gpu(
 
     if ( storev == MagmaColumnwise )
       {
-        magma_dgemm( MagmaConjTrans, MagmaNoTrans,
+        magma_dgemm( MagmaTrans, MagmaNoTrans,
                      n, k, m,
                      c_one,  dC(dC_offset),    ldc,
                      dV(dV_offset),    ldv,
@@ -132,14 +133,14 @@ magma_dlarfb_gpu(
                          c_one, dT(dT_offset),    ldt,
                          dwork(dwork_offset), ldwork, queue);
 
-        magma_dgemm( MagmaNoTrans, MagmaConjTrans,
+        magma_dgemm( MagmaNoTrans, MagmaTrans,
                      m, n, k,
                      c_neg_one, dV(dV_offset),    ldv,
                      dwork(dwork_offset), ldwork,
                      c_one,     dC(dC_offset),    ldc, queue);
     }
     else {
-        magma_dgemm( MagmaNoTrans, MagmaConjTrans,
+        magma_dgemm( MagmaNoTrans, MagmaTrans,
                      m, k, n,
                      c_one,  dC(dC_offset),    ldc,
                      dV(dV_offset),    ldv,
@@ -180,14 +181,14 @@ magma_dlarfb_gpu(
                              c_one, dT(dT_offset),    ldt,
                              dwork(dwork_offset), ldwork, queue);
 
-            magma_dgemm( MagmaNoTrans, MagmaConjTrans,
+            magma_dgemm( MagmaNoTrans, MagmaTrans,
                          m, n, k,
                          c_neg_one, dwork(dwork_offset), ldwork,
                          dV(dV_offset),    ldv,
                          c_one,     dC(dC_offset),    ldc, queue);
         }
         else {
-            magma_dgemm( MagmaNoTrans, MagmaConjTrans,
+            magma_dgemm( MagmaNoTrans, MagmaTrans,
                          m, k, n,
                          c_one,  dC(dC_offset),    ldc,
                          dV(dV_offset),    ldv,

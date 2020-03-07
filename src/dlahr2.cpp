@@ -1,15 +1,15 @@
 /*
-    -- clMAGMA (version 1.3.0) --
+    -- clMAGMA (version 1.1.0) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
-       @generated from zlahr2.cpp normal z -> d, Sat Nov 15 00:21:37 2014
+       @generated from zlahr2.cpp normal z -> d, Fri Jan 10 15:51:18 2014
 
 */
 
-#include <stdio.h>
+#include <cstdio>
 #include "common_magma.h"
 
 // === Define what BLAS to use ============================================
@@ -19,22 +19,19 @@
 #endif
 // === End defining what BLAS to use =======================================
 
-extern "C" magma_int_t
-magma_dlahr2(
-    magma_int_t n, magma_int_t k, magma_int_t nb,
-    magmaDouble_ptr da, size_t da_offset, magma_int_t ldda,
-    magmaDouble_ptr dv, size_t dv_offset, magma_int_t lddv,
-    double *a, magma_int_t lda,
-    double *tau,
-    double *t, magma_int_t ldt,
-    double *y, magma_int_t ldy,
-    magma_queue_t queue)
+extern "C" magma_err_t
+magma_dlahr2(magma_int_t n, magma_int_t k, magma_int_t nb,
+             magmaDouble_ptr da, size_t da_offset, magmaDouble_ptr dv, size_t dv_offset,
+             double *a, magma_int_t lda,
+             double *tau, double *t, magma_int_t ldt,
+             double *y, magma_int_t ldy,
+             magma_queue_t queue)
 {
 /*  -- clMAGMA auxiliary routine (version 0.1) --
        Univ. of Tennessee, Knoxville
        Univ. of California, Berkeley
        Univ. of Colorado, Denver
-       @date November 2014
+       @date January 2014
 
     Purpose
     =======
@@ -74,7 +71,7 @@ magma_dlahr2(
             On exit this contains the Householder vectors of the transformation.
 
     LDA     (input) INTEGER
-            The leading dimension of the array A.  LDA >= max(1,N).
+            The leading dimension of the array A.  LDA >= std::max(1,N).
 
     TAU     (output) DOUBLE_PRECISION array, dimension (NB)
             The scalar factors of the elementary reflectors. See Further
@@ -139,6 +136,7 @@ magma_dlahr2(
     double c_one     = MAGMA_D_ONE;
     double c_neg_one = MAGMA_D_NEG_ONE;
 
+    magma_int_t ldda = lda;
     magma_int_t c__1 = 1;
     
     magma_int_t a_dim1, a_offset, t_dim1, t_offset, y_dim1, y_offset, i__2, i__3;
@@ -190,19 +188,19 @@ magma_dlahr2(
           
           i__2 = i__ - 1;
           blasf77_dcopy(&i__2, &a[k+1+i__*a_dim1], &c__1, &t[nb*t_dim1+1], &c__1);
-          blasf77_dtrmv("Lower", MagmaConjTransStr, "UNIT", &i__2,
+          blasf77_dtrmv("Lower", MagmaTransStr, "UNIT", &i__2,
                         &a[k + 1 + a_dim1], &lda, &t[nb * t_dim1 + 1], &c__1);
 
           /* w := w + V2'*b2 */
           i__2 = n - k - i__ + 1;
           i__3 = i__ - 1;
-          blasf77_dgemv(MagmaConjTransStr, &i__2, &i__3, &c_one,
+          blasf77_dgemv(MagmaTransStr, &i__2, &i__3, &c_one,
                         &a[k + i__ + a_dim1], &lda, &a[k+i__+i__*a_dim1], &c__1,
                         &c_one, &t[nb*t_dim1+1], &c__1);
 
           /* w := T'*w */
           i__2 = i__ - 1;
-          blasf77_dtrmv("U", MagmaConjTransStr, "N", &i__2, &t[t_offset], &ldt,
+          blasf77_dtrmv("U", MagmaTransStr, "N", &i__2, &t[t_offset], &ldt,
                         &t[nb*t_dim1+1], &c__1);
           
           /* b2 := b2 - V2*w */
@@ -224,23 +222,23 @@ magma_dlahr2(
         i__2 = n - k - i__ + 1;
         i__3 = k + i__ + 1;
         lapackf77_dlarfg(&i__2, &a[k + i__ + i__ * a_dim1],
-                         &a[min(i__3,n) + i__ * a_dim1], &c__1, &tau[i__]);
+                         &a[std::min(i__3,n) + i__ * a_dim1], &c__1, &tau[i__]);
         ei = a[k + i__ + i__ * a_dim1];
         a[k + i__ + i__ * a_dim1] = c_one;
 
         /* Compute  Y(K+1:N,I) */
         i__2 = n - k;
         i__3 = n - k - i__ + 1;
-        magma_dsetvector( i__3, &a[k + i__ + i__*a_dim1], 1, dv, dv_offset+(i__-1)*(lddv+1),      1, queue );
+        magma_dsetvector( i__3, &a[k + i__ + i__*a_dim1], 0, 1, dv, dv_offset+(i__-1)*(ldda+1),      1, queue );
 
         magma_dgemv(MagmaNoTrans, i__2+1, i__3, c_one,
                     da, da_offset + (-1 + k + i__ * ldda), ldda,
-                    dv, dv_offset + (i__-1)*(lddv+1), c__1, c_zero,
+                    dv, dv_offset + (i__-1)*(ldda+1), c__1, c_zero,
                     da, da_offset + (-1 + k + (i__-1)*ldda), c__1, queue);
         
         i__2 = n - k - i__ + 1;
         i__3 = i__ - 1;
-        blasf77_dgemv(MagmaConjTransStr, &i__2, &i__3, &c_one,
+        blasf77_dgemv(MagmaTransStr, &i__2, &i__3, &c_one,
                       &a[k + i__ + a_dim1], &lda, &a[k+i__+i__*a_dim1], &c__1,
                       &c_zero, &t[i__*t_dim1+1], &c__1);
 
@@ -251,7 +249,7 @@ magma_dlahr2(
         blasf77_dtrmv("U","N","N", &i__2, &t[t_offset], &ldt, &t[i__*t_dim1+1], &c__1);
         t[i__ + i__ * t_dim1] = tau[i__];
 
-        magma_dgetvector( n - k + 1, da, da_offset+(-1+ k+(i__-1)*ldda), 1, y+ k + i__*y_dim1, 1, queue );
+        magma_dgetvector( n - k + 1, da, da_offset+(-1+ k+(i__-1)*ldda), 1, y+ k + i__*y_dim1, 0, 1, queue );
     }
     a[k + nb + nb * a_dim1] = ei;
 
